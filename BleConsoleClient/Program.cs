@@ -8,7 +8,7 @@ internal static class Program
 
     public static async Task Main(string[] args)
     {
-        await using var client = new TfLunaBleClient();
+        await using var client = new TfLumaBleClientLib();
         client.DistanceReceived += (_, eventArgs) =>
         {
             var sample = eventArgs.Sample;
@@ -31,7 +31,7 @@ internal static class Program
                 return;
             }
 
-            Console.WriteLine($"Connected to {probe.DeviceName} ({TfLunaBleClient.FormatBluetoothAddress(probe.Address)})");
+            Console.WriteLine($"Connected to {probe.DeviceName} ({TfLumaBleClientLib.FormatBluetoothAddress(probe.Address)})");
             Console.WriteLine($"Service enumeration status: {probe.Status}");
             if (probe.Services.Count == 0)
             {
@@ -74,7 +74,7 @@ internal static class Program
 
         var connectedName = client.ConnectedDeviceName ?? "(unknown)";
         var connectedAddress = client.ConnectedBluetoothAddress.HasValue
-            ? TfLunaBleClient.FormatBluetoothAddress(client.ConnectedBluetoothAddress.Value)
+            ? TfLumaBleClientLib.FormatBluetoothAddress(client.ConnectedBluetoothAddress.Value)
             : "(unknown)";
 
         Console.WriteLine($"Connected to device: {connectedName} ({connectedAddress})");
@@ -165,7 +165,7 @@ internal static class Program
         {
             var displayName = string.IsNullOrWhiteSpace(item.Name) ? "(no local name)" : item.Name;
             var marker = item.HasTargetService ? " [has target service UUID]" : string.Empty;
-            Console.WriteLine($"  {TfLunaBleClient.FormatBluetoothAddress(item.Address)}  {displayName}  RSSI {item.Rssi} dBm{marker}");
+            Console.WriteLine($"  {TfLumaBleClientLib.FormatBluetoothAddress(item.Address)}  {displayName}  RSSI {item.Rssi} dBm{marker}");
         }
 
         var tfLunaCandidates = snapshot

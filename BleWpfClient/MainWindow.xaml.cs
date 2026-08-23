@@ -6,7 +6,7 @@ namespace BleWpfClient;
 
 public partial class MainWindow : Window
 {
-    private readonly TfLunaBleClient _client = new();
+    private readonly TfLumaBleClientLib _client = new();
 
     public MainWindow()
     {
@@ -36,7 +36,7 @@ public partial class MainWindow : Window
             {
                 var name = string.IsNullOrWhiteSpace(d.Name) ? "(no local name)" : d.Name;
                 var hasService = d.HasTargetService ? " [svc]" : string.Empty;
-                Log($"  {TfLunaBleClient.FormatBluetoothAddress(d.Address)}  {name}  RSSI {d.Rssi} dBm{hasService}");
+                Log($"  {TfLumaBleClientLib.FormatBluetoothAddress(d.Address)}  {name}  RSSI {d.Rssi} dBm{hasService}");
             }
         }
         catch (Exception ex)
@@ -70,7 +70,7 @@ public partial class MainWindow : Window
 
             SetConnectedState(true);
             var addr = _client.ConnectedBluetoothAddress.HasValue
-                ? TfLunaBleClient.FormatBluetoothAddress(_client.ConnectedBluetoothAddress.Value)
+                ? TfLumaBleClientLib.FormatBluetoothAddress(_client.ConnectedBluetoothAddress.Value)
                 : "(unknown)";
             StatusText.Text = $"Connected: {_client.ConnectedDeviceName} ({addr})";
             StatusText.Foreground = System.Windows.Media.Brushes.DarkGreen;

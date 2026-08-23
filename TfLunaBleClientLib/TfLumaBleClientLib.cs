@@ -23,7 +23,7 @@ public sealed class DistanceSampleEventArgs : EventArgs
 	public DistanceSample Sample { get; }
 }
 
-public sealed class TfLunaBleClient : IAsyncDisposable
+public sealed class TfLumaBleClientLib : IAsyncDisposable
 {
 	private const string DefaultDeviceName = "TF-Luna";
 
@@ -46,7 +46,7 @@ public sealed class TfLunaBleClient : IAsyncDisposable
 	private uint _lastSensorTimestampMs;
 	private uint _startSensorTimestampMs;
 
-	public TfLunaBleClient(string? deviceName = null)
+	public TfLumaBleClientLib(string? deviceName = null)
 	{
 		_deviceName = string.IsNullOrWhiteSpace(deviceName) ? DefaultDeviceName : deviceName;
 	}

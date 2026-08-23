@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Tf-Luna.BleClientLib\Tf-Luna.BleClientLib.csproj" />
+    <ProjectReference Include="..\TfLunaBleClientLib\TfLunaBleClientLib.csproj" />
   </ItemGroup>
 
 </Project>
