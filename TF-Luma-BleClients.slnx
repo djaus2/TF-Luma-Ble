@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="BleConsoleClient/BleConsoleClient.csproj" />
+  <Project Path="Tf-Luna.BleClientLib/Tf-Luna.BleClientLib.csproj" />
+  <Project Path="BleWpfClient/BleWpfClient.csproj" />
+</Solution>

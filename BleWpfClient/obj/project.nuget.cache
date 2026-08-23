@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "Jaul7ZNYB4E=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\David Jones\\Documents\\Arduino\\TF-Luma-Ble\\BleWpfClient\\BleWpfClient.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\David Jones\\.nuget\\packages\\microsoft.windows.sdk.net.ref\\10.0.19041.57\\microsoft.windows.sdk.net.ref.10.0.19041.57.nupkg.sha512"
+  ],
+  "logs": []
+}

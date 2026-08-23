@@ -1,0 +1,96 @@
+﻿<Window x:Class="BleWpfClient.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="TF-Luna BLE Client" Height="640" Width="980" MinHeight="560" MinWidth="900">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="10" CornerRadius="6" Background="#F3F6FB" BorderBrush="#CFD8E3" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Vertical" Margin="0,0,16,0">
+                    <TextBlock Text="TF-Luna BLE Service" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="StatusText" Text="Disconnected" Foreground="#A94442" FontSize="13" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <Button Grid.Column="1" x:Name="ScanButton" Content="Scan" Width="90" Height="34" Margin="0,0,8,0" Click="ScanButton_Click"/>
+                <Button Grid.Column="2" x:Name="ConnectButton" Content="Connect" Width="110" Height="34" Click="ConnectButton_Click"/>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Margin="0,10,0,0" Padding="10" CornerRadius="6" Background="#FAFCFF" BorderBrush="#CFD8E3" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="Mode" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox Grid.Column="1" x:Name="ModeCombo" VerticalAlignment="Center" SelectedIndex="1">
+                    <ComboBoxItem Content="0 - Continuous" Tag="0"/>
+                    <ComboBoxItem Content="1 - Threshold" Tag="1"/>
+                    <ComboBoxItem Content="2 - Reserved" Tag="2"/>
+                </ComboBox>
+
+                <Button Grid.Column="2" x:Name="SendModeButton" Content="Send Mode" Width="95" Height="30" Margin="10,0,16,0" Click="SendModeButton_Click"/>
+
+                <TextBlock Grid.Column="3" Text="Threshold (mm)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Grid.Column="4" x:Name="ThresholdTextBox" Text="100" Width="90" Height="28" VerticalContentAlignment="Center"/>
+                <Button Grid.Column="5" x:Name="SendThresholdButton" Content="Send Threshold" Width="112" Height="30" Margin="10,0,16,0" Click="SendThresholdButton_Click"/>
+
+                <Button Grid.Column="6" x:Name="StartTimerButton" Content="Start" Width="80" Height="30" Click="StartTimerButton_Click"/>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Margin="0,10,0,0" Padding="10" CornerRadius="6" Background="#FFFFFF" BorderBrush="#CFD8E3" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Distance" FontSize="12" Foreground="#687889"/>
+                    <TextBlock x:Name="DistanceText" Text="-- mm" FontSize="28" FontWeight="Bold"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="Sensor Timestamp" FontSize="12" Foreground="#687889"/>
+                    <TextBlock x:Name="SensorTimestampText" Text="-- ms" FontSize="28" FontWeight="Bold"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Elapsed From Start" FontSize="12" Foreground="#687889"/>
+                    <TextBlock x:Name="ElapsedText" Text="--" FontSize="28" FontWeight="Bold"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3" Margin="0,10,0,0" Padding="8" CornerRadius="6" Background="#F9FBFD" BorderBrush="#CFD8E3" BorderThickness="1">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Activity" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                <ListBox x:Name="LogList" FontFamily="Consolas" FontSize="13"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
