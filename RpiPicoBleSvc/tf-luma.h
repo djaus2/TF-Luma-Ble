@@ -3,6 +3,10 @@
 
 #include <Arduino.h>
 
+
+#define I2C0_SDA 0
+#define I2C0_SCL 1
+
 class TFLuma {
 public:
   TFLuma();

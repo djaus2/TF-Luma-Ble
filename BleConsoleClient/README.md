@@ -52,6 +52,10 @@ Full command names still work too (`mode`, `threshold`, `start`, `help`, `quit`)
 ## Notes
 
 - This project targets `net8.0-windows10.0.19041.0`.
+ - This project targets `net10.0-windows10.0.19041.0`.
+ - See the shared library and WPF client READMEs for alternate UIs and API usage:
+   - ../TfLunaBleClientLib/README.md
+   - ../BleWpfClient/README.md
 - On first use, Windows may require Bluetooth permission prompts.
 
 ## Troubleshooting

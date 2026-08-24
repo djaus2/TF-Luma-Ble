@@ -4,8 +4,7 @@
 #include <TFLI2C.h>      // TFLuna-I2C Library v.0.2.0
 #include "tf-luma.h"
 
-#define I2C0_SDA 0
-#define I2C0_SCL 1
+
 
 TFLI2C tflI2C;
 
