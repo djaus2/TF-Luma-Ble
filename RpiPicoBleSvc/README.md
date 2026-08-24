@@ -63,7 +63,7 @@ Device name: `TF-Luna`
 <img src="../pics/tf-luma-pins.png" alt="TF-Luna pinout" width="60%" />
 
 > Note that the colors of the supplied cable are non-standard.  
- eg Pin 1 Vcc is white with the cable not read.
+ eg Pin 1 Vcc is white with the cable not red.
 
 #### Function and connection description of each pin
 
