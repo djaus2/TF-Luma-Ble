@@ -1,7 +1,7 @@
 # TF-Luma BLE
 
 This repository contains three related .NET projects that implement clients for a TF-Luna distance sensor exposed over BLE,
-plus an Arduino/Raspberry Pico sketch (no README in-repo) used to run the sensor firmware.
+plus an Arduino/Raspberry Pico sketch used to run the sensor firmware.
 
 > Ultimately this project will be used with the [djaus2/SwissTimingGemini7SegDisplay](https://github.com/djaus2/SwissTimingGemini7SegDisplay) project to trigger the end of a sprint race.
 
