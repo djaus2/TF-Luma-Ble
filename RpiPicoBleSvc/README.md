@@ -9,6 +9,7 @@ Raspberry Pi Pico (Arduino-Pico core) BLE peripheral firmware that reads a TF-Lu
 - `btstack_config.h` — BTstack BLE stack configuration
 
 ## TF-Luma Device
+
 ![Schematics of the ToF Principle](../pics/devicefunctionality.png)
 
 ### Parameters specification of TF-Luna
@@ -53,7 +54,8 @@ Device name: `TF-Luna`
 
 ## Hardware notes
 
-### TF-Luma 
+### TF-Luma
+
 <img src="../pics/tf-luma-pins.png" alt="TF-Luna pinout" width="60%" />
 
 > Note that the colors of the supplied cable are non-standard.  
@@ -61,18 +63,19 @@ Device name: `TF-Luna`
 
 #### Function and connection description of each pin
 
-| No. | Function | Description |
-|---|---|---|
-| 1 | +5V | Power supply |
-| 2 | RXD/SDA | Receiving/Data |
-| 3 | TXD/SCL | Transmitting/Clock |
-| 4 | GND | Ground |
-| 5 | Configuration Input | Ground: I2C mode; Disconnected/3.3V: Serial port Communications mode |
-| 6 | Multiplexing output | On/off mode: Output; I2C mode: Data ready signal |  
+| No. | Function | Description | Supplied Cable Colors |
+|---|---|---|---|
+| 1 | +5V | Power supply | White |
+| 2 | RXD/SDA | Receiving/Data | Blue |
+| 3 | TXD/SCL | Transmitting/Clock | Green |
+| 4 | GND | Ground | Yellow |
+| 5 | Configuration Input | Ground: I2C mode; Disconnected/3.3V: Serial port Communications mode | Black |
+| 6 | Multiplexing output | On/off mode: Output; I2C mode: Data ready signal (nc) |  Red |
 
  Ref: -[TF-Luna User Manual](../docs/TF-Luna%20User%20Manual.pdf)
 
-- TF-Luna is wired over I2C using `Wire.setSDA`/`Wire.setSCL` on pins defined in `tf-luma.h` (`I2C0_SDA`, `I2C0_SCL`); these default to GPIO 0 (SDA) and GPIO 1 (SCL) and can be changed there.
+- TF-Luna is wired over I2C using `Wire.setSDA`/`Wire.setSCL` on pins defined in `tf-luma.h` (`I2C0_SDA`, `I2C0_SCL`); these default to GPIO 8 (SDA) and GPIO 9 (SCL) and can be changed there.  
+GPIO Pins 8&9 are what the PiicoDev LiPo Expansion Board for Raspberry Pi Pico uses for its I2C cable connection.
 - Uses the `TFLI2C` library at the default I2C address (`TFL_DEF_ADR`).
 
 ### Wiring diagram
@@ -80,8 +83,8 @@ Device name: `TF-Luna`
 ```mermaid
 graph LR
     subgraph Pico["Raspberry Pi Pico"]
-        SDA["GPIO 0 (I2C0 SDA)"]
-        SCL["GPIO 1 (I2C0 SCL)"]
+        SDA["GPIO 8 (I2C0 SDA)"]
+        SCL["GPIO 9 (I2C0 SCL)"]
         VBUS["3V3 OUT"]
         GND["GND"]
     end
@@ -104,8 +107,8 @@ graph LR
 
 | Pico Pin | TF-Luna Pin |
 |---|---|
-| GPIO 0 (I2C0 SDA) | Pin 2 (RXD/SDA) |
-| GPIO 1 (I2C0 SCL) | Pin 3 (TXD/SCL) |
+| GPIO 8 (I2C0 SDA) | Pin 2 (RXD/SDA) |
+| GPIO 9 (I2C0 SCL) | Pin 3 (TXD/SCL) |
 | VBUS (5V) or external 5V supply | Pin 1 (+5V) |
 | GND | Pin 4 (GND) |
 | GND | Pin 5 (Config Input — grounded to select I2C mode) |
@@ -126,5 +129,17 @@ graph LR
 
 - See [../TfLunaBleClientLib/README.md](../TfLunaBleClientLib/README.md), [../BleConsoleClient/README.md](../BleConsoleClient/README.md), and [../BleWpfClient/README.md](../BleWpfClient/README.md) for the Windows-side clients that talk to this firmware.
 
-## FYI
-![RPI Pico Pinnout](../pics/rpipico.png)
+## PiicoDev LiPo Expansion Board for Raspberry Pi Pico cable connections
+
+The I2C cable that connects at the bottom of the PiicoDev board connects to GPIO pins 8 and 9 as below
+
+![PiicoDev I2C cable pins](../pics/picodevi2cpins.png)  
+***The Rpi Pico W cannections as used when plugged in to the PiicoDev LiPo Expansion Board***
+
+![PiicoDev LiPo Expansion Board for Raspberry Pi Pico](../pics/PiicoDev-LiPo-Expansion-Board-for-Raspberry-Pi-Pico.png)  
+***The PiicoDev LiPo Expansion Board for Rpi Pico W showing connections to it; esp. I2C at bottom.***
+
+> LIPO battery is optional but on the LIPO version of this board will charge when board is plugged into USB.
+
+![PiicoDev I2C Male Cable](../pics/PiicoDev-I2C-Male-Cable.png)  
+***The I2C Male cable for connecting to the TF-Luma cable.***

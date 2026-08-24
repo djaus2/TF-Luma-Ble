@@ -3,9 +3,9 @@
 
 #include <Arduino.h>
 
-
-#define I2C0_SDA 0
-#define I2C0_SCL 1
+// These are the default pins
+#define I2C0_SDA 8
+#define I2C0_SCL 9
 
 class TFLuma {
 public:
