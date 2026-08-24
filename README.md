@@ -11,7 +11,7 @@ Projects
 
 RPI Pico sketch (sketch files not documented here)
 
-The RPI Pico sketch included with this project (no dedicated README present in the sketch folder) implements the BLE GATT service and characteristics used by the clients above. Key details:
+The RPI Pico sketch included with this project implements the BLE GATT service and characteristics used by the clients above. Key details:
 
 - Service UUID: 0000A000-0000-1000-8000-00805F9B34FB
 - Distance notification characteristic UUID: 0000A001-0000-1000-8000-00805F9B34FB
@@ -24,5 +24,4 @@ Flashing and testing notes
 - Use your usual toolchain for the Pico (Arduino IDE with Pico core, picotool, or the Pico SDK) to flash the sketch.
 - Open a serial console (commonly 115200 baud) to observe firmware messages such as `BLE server advertising`.
 - On Windows, run one of the client apps (console or WPF) and scan for BLE advertisements. If the service is not found, ensure the board is powered and advertising and check serial output for errors.
-
 
