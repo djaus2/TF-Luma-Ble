@@ -3,6 +3,8 @@
 This repository contains three related .NET projects that implement clients for a TF-Luna distance sensor exposed over BLE,
 plus an Arduino/Raspberry Pico sketch (no README in-repo) used to run the sensor firmware.
 
+> Ultimately this project will be used with eth [Swiss Timing ]() Project to trigger the end of a sprint race.
+
 ## C# Projects
 
 - BleConsoleClient - a cross-platform console-style Windows BLE client that discovers the TF-Luna BLE service, subscribes to distance notifications and provides an interactive command prompt. See BleConsoleClient/README.md for details. Targets net10.0-windows10.0.19041.0.
