@@ -1,5 +1,8 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
   <Project Path="BleConsoleClient/BleConsoleClient.csproj" />
-  <Project Path="TfLunaBleClientLib/TfLunaBleClientLib.csproj" />
   <Project Path="BleWpfClient/BleWpfClient.csproj" />
+  <Project Path="TfLunaBleClientLib/TfLunaBleClientLib.csproj" />
 </Solution>
