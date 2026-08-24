@@ -31,6 +31,9 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	private static readonly Guid DistanceUuid = Guid.Parse("0000A001-0000-1000-8000-00805F9B34FB");
 	private static readonly Guid ModeUuid = Guid.Parse("0000A006-0000-1000-8000-00805F9B34FB");
 	private static readonly Guid ThresholdUuid = Guid.Parse("0000A007-0000-1000-8000-00805F9B34FB");
+	private static readonly Guid RangeMinUuid = Guid.Parse("0000A008-0000-1000-8000-00805F9B34FB");
+	private static readonly Guid RangeMaxUuid = Guid.Parse("0000A009-0000-1000-8000-00805F9B34FB");
+	private static readonly Guid StartUuid = Guid.Parse("0000A00A-0000-1000-8000-00805F9B34FB");
 
 	private readonly string _deviceName;
 	private readonly object _stateSync = new();
@@ -40,6 +43,9 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	private GattCharacteristic? _distanceCharacteristic;
 	private GattCharacteristic? _modeCharacteristic;
 	private GattCharacteristic? _thresholdCharacteristic;
+	private GattCharacteristic? _rangeMinCharacteristic;
+	private GattCharacteristic? _rangeMaxCharacteristic;
+	private GattCharacteristic? _startCharacteristic;
 
 	private bool _elapsedEnabled;
 	private bool _hasLastSensorTimestamp;
@@ -85,6 +91,9 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		var distance = await FindCharacteristicAsync(service, DistanceUuid, cancellationToken);
 		var mode = await FindCharacteristicAsync(service, ModeUuid, cancellationToken);
 		var threshold = await FindCharacteristicAsync(service, ThresholdUuid, cancellationToken);
+		var rangeMin = await FindCharacteristicAsync(service, RangeMinUuid, cancellationToken);
+		var rangeMax = await FindCharacteristicAsync(service, RangeMaxUuid, cancellationToken);
+		var start = await FindCharacteristicAsync(service, StartUuid, cancellationToken);
 
 		if (distance is null || mode is null || threshold is null)
 		{
@@ -109,6 +118,9 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		_distanceCharacteristic = distance;
 		_modeCharacteristic = mode;
 		_thresholdCharacteristic = threshold;
+		_rangeMinCharacteristic = rangeMin;
+		_rangeMaxCharacteristic = rangeMax;
+		_startCharacteristic = start;
 
 		lock (_stateSync)
 		{
@@ -139,6 +151,9 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		_distanceCharacteristic = null;
 		_modeCharacteristic = null;
 		_thresholdCharacteristic = null;
+		_rangeMinCharacteristic = null;
+		_rangeMaxCharacteristic = null;
+		_startCharacteristic = null;
 
 		_service?.Dispose();
 		_service = null;
@@ -149,7 +164,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 
 	public async Task<bool> WriteModeAsync(byte mode, CancellationToken cancellationToken = default)
 	{
-		if (_modeCharacteristic is null || mode > 2)
+		if (_modeCharacteristic is null || mode > 3)
 		{
 			return false;
 		}
@@ -170,6 +185,40 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		var writer = new DataWriter { ByteOrder = ByteOrder.LittleEndian };
 		writer.WriteUInt16(thresholdMm);
 		var result = await _thresholdCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer()).AsTask(cancellationToken);
+		return result.Status == GattCommunicationStatus.Success;
+	}
+
+	public async Task<bool> WriteRangeAsync(ushort minMm, ushort maxMm, CancellationToken cancellationToken = default)
+	{
+		if (_rangeMinCharacteristic is null || _rangeMaxCharacteristic is null || minMm == 0 || maxMm == 0 || minMm > maxMm)
+		{
+			return false;
+		}
+
+		var minWriter = new DataWriter { ByteOrder = ByteOrder.LittleEndian };
+		minWriter.WriteUInt16(minMm);
+		var minResult = await _rangeMinCharacteristic.WriteValueWithResultAsync(minWriter.DetachBuffer()).AsTask(cancellationToken);
+		if (minResult.Status != GattCommunicationStatus.Success)
+		{
+			return false;
+		}
+
+		var maxWriter = new DataWriter { ByteOrder = ByteOrder.LittleEndian };
+		maxWriter.WriteUInt16(maxMm);
+		var maxResult = await _rangeMaxCharacteristic.WriteValueWithResultAsync(maxWriter.DetachBuffer()).AsTask(cancellationToken);
+		return maxResult.Status == GattCommunicationStatus.Success;
+	}
+
+	public async Task<bool> TriggerOneShotRangeCaptureAsync(CancellationToken cancellationToken = default)
+	{
+		if (_startCharacteristic is null)
+		{
+			return false;
+		}
+
+		var writer = new DataWriter();
+		writer.WriteByte(1);
+		var result = await _startCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer()).AsTask(cancellationToken);
 		return result.Status == GattCommunicationStatus.Success;
 	}
 

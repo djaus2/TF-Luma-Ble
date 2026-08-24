@@ -5,6 +5,61 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="TF-Luna BLE Client" Height="640" Width="980" MinHeight="560" MinWidth="900">
+    <Window.Resources>
+        <Style x:Key="RaisedButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#1B2733"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#405473" BlurRadius="6" ShadowDepth="2" Opacity="0.35" Direction="270"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder" CornerRadius="6" BorderThickness="1" BorderBrush="#8FA3BE">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#FFFFFF" Offset="0"/>
+                                    <GradientStop Color="#DCE6F2" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,2"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#FFFFFF" Offset="0"/>
+                                            <GradientStop Color="#C9DAF0" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#B9CCE6" Offset="0"/>
+                                            <GradientStop Color="#DCE6F2" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#5F7BA3"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource RaisedButtonStyle}"/>
+    </Window.Resources>
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -19,6 +74,8 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Vertical" Margin="0,0,16,0">
@@ -26,8 +83,10 @@
                     <TextBlock x:Name="StatusText" Text="Disconnected" Foreground="#A94442" FontSize="13" Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <Button Grid.Column="1" x:Name="ScanButton" Content="Scan" Width="90" Height="34" Margin="0,0,8,0" Click="ScanButton_Click"/>
-                <Button Grid.Column="2" x:Name="ConnectButton" Content="Connect" Width="110" Height="34" Click="ConnectButton_Click"/>
+                <Button Grid.Column="1" x:Name="StartTimerButton" Content="Start" Width="80" Height="34" Margin="0,0,8,0" IsEnabled="False" Click="StartTimerButton_Click"/>
+                <Button Grid.Column="2" x:Name="ConnectButton" Content="Connect" Width="110" Height="34" Margin="0,0,8,0" IsEnabled="False" Click="ConnectButton_Click"/>
+                <Button Grid.Column="3" x:Name="ScanButton" Content="Scan" Width="90" Height="34" Margin="0,0,8,0" Click="ScanButton_Click"/>
+                <Button Grid.Column="4" x:Name="ExitButton" Content="Exit" Width="80" Height="34" Click="ExitButton_Click"/>
             </Grid>
         </Border>
 
@@ -37,27 +96,34 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="130"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="120"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="70"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="70"/>
+                    <ColumnDefinition Width="70"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Text="Mode" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox Grid.Column="1" x:Name="ModeCombo" VerticalAlignment="Center" SelectedIndex="1">
+                <ComboBox Grid.Column="1" x:Name="ModeCombo" VerticalAlignment="Center" SelectedIndex="1" IsEnabled="False" SelectionChanged="ModeCombo_SelectionChanged">
                     <ComboBoxItem Content="0 - Continuous" Tag="0"/>
                     <ComboBoxItem Content="1 - Threshold" Tag="1"/>
                     <ComboBoxItem Content="2 - Reserved" Tag="2"/>
+                    <ComboBoxItem Content="3 - One Shot" Tag="3"/>
                 </ComboBox>
 
-                <Button Grid.Column="2" x:Name="SendModeButton" Content="Send Mode" Width="95" Height="30" Margin="10,0,16,0" Click="SendModeButton_Click"/>
+                <Button Grid.Column="2" x:Name="SendModeButton" Content="Send Mode" Width="95" Height="30" Margin="10,0,16,0" IsEnabled="False" Click="SendModeButton_Click"/>
 
                 <TextBlock Grid.Column="3" Text="Threshold (mm)" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox Grid.Column="4" x:Name="ThresholdTextBox" Text="100" Width="90" Height="28" VerticalContentAlignment="Center"/>
-                <Button Grid.Column="5" x:Name="SendThresholdButton" Content="Send Threshold" Width="112" Height="30" Margin="10,0,16,0" Click="SendThresholdButton_Click"/>
+                <TextBox Grid.Column="4" x:Name="ThresholdTextBox" Text="100" Width="90" Height="28" IsEnabled="False" VerticalContentAlignment="Center"/>
+                <Button Grid.Column="5" x:Name="SendThresholdButton" Content="Send Threshold" Width="136" Height="30" Margin="10,0,16,0" IsEnabled="False" Click="SendThresholdButton_Click"/>
 
-                <Button Grid.Column="6" x:Name="StartTimerButton" Content="Start" Width="80" Height="30" Click="StartTimerButton_Click"/>
+                <TextBlock Grid.Column="6" Text="Range (mm)" VerticalAlignment="Center" Margin="10,0,8,0"/>
+                <TextBox Grid.Column="7" x:Name="RangeMinTextBox" Text="300" Width="70" Height="28" Margin="0,0,8,0" IsEnabled="False" VerticalContentAlignment="Center"/>
+                <TextBox Grid.Column="8" x:Name="RangeMaxTextBox" Text="2000" Width="70" Height="28" Margin="0,0,8,0" IsEnabled="False" VerticalContentAlignment="Center"/>
+                <Button Grid.Column="9" x:Name="SendRangeButton" Content="Set Range" Width="90" Height="30" IsEnabled="False" Click="SendRangeButton_Click"/>
             </Grid>
         </Border>
 

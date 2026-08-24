@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using TfLuna.BleClientLib;
 
 namespace BleConsoleClient;
@@ -9,10 +10,14 @@ internal static class Program
     public static async Task Main(string[] args)
     {
         await using var client = new TfLumaBleClientLib();
+        var elapsedStopwatch = new Stopwatch();
         client.DistanceReceived += (_, eventArgs) =>
         {
             var sample = eventArgs.Sample;
-            Console.WriteLine($"Distance: {sample.DistanceMm} mm @ {sample.TimeDisplay}");
+            var elapsedDisplay = elapsedStopwatch.IsRunning
+                ? TfLumaBleClientLib.FormatElapsed((uint)elapsedStopwatch.ElapsedMilliseconds)
+                : "--";
+            Console.WriteLine($"Distance: {sample.DistanceMm} mm @ {elapsedDisplay}");
         };
 
         var probeIndex = Array.FindIndex(args, a => a.Equals("probe", StringComparison.OrdinalIgnoreCase) || a.Equals("--probe", StringComparison.OrdinalIgnoreCase));
@@ -125,18 +130,26 @@ internal static class Program
                 continue;
             }
 
+            if ((command.Equals("range", StringComparison.OrdinalIgnoreCase) || commandKey == 'r') && parts.Length == 3 && ushort.TryParse(parts[1], out var rangeMin) && ushort.TryParse(parts[2], out var rangeMax))
+            {
+                var ok = await client.WriteRangeAsync(rangeMin, rangeMax);
+                Console.WriteLine($"Write range={rangeMin}..{rangeMax} mm: {(ok ? "Success" : "Failed")}");
+                continue;
+            }
+
+            if ((command.Equals("oneshot", StringComparison.OrdinalIgnoreCase) || command.Equals("shot", StringComparison.OrdinalIgnoreCase) || commandKey == 'o') && parts.Length == 1)
+            {
+                var ok = await client.TriggerOneShotRangeCaptureAsync();
+                Console.WriteLine($"Trigger one-shot range capture: {(ok ? "Sent" : "Failed")}");
+                continue;
+            }
+
             if (command.Equals("start", StringComparison.OrdinalIgnoreCase) || commandKey == 's')
             {
-                var started = client.TryStartElapsedFromLatestSample();
-                if (started)
-                {
-                    Console.WriteLine("Start marker set to latest sample timestamp.");
-                }
-                else
-                {
-                    Console.WriteLine("No distance sample received yet. Wait for a reading, then run start.");
-                }
-
+                // PC-timed rather than device-timestamp-based, since on-device notifications
+                // can be infrequent (Threshold/One-Shot modes) and give a stale baseline.
+                elapsedStopwatch.Restart();
+                Console.WriteLine("Start: elapsed timer started.");
                 continue;
             }
 
@@ -185,8 +198,10 @@ internal static class Program
     private static void PrintHelp()
     {
         Console.WriteLine("Connected. Commands:");
-        Console.WriteLine("  m <0|1|2>   mode");
+        Console.WriteLine("  m <0|1|2|3> mode (3 = one-shot in-range capture)");
         Console.WriteLine("  t <mm>      threshold in mm");
+        Console.WriteLine("  r <min> <max> set a capture range in mm");
+        Console.WriteLine("  o           trigger one-shot in-range capture");
         Console.WriteLine("  s           start elapsed time from latest sample");
         Console.WriteLine("  h           help");
         Console.WriteLine("  q           quit");
