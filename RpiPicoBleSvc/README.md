@@ -2,6 +2,10 @@
 
 Raspberry Pi Pico (Arduino-Pico core) BLE peripheral firmware that reads a TF-Luna I2C distance sensor and exposes it as a BLE GATT service to the Windows clients in this workspace.
 
+## Ref
+
+Uses the [budryerson/TFLuna-I2C](https://github.com/budryerson/TFLuna-I2C) as on GitHub.
+
 ## Files
 
 - `RpiPicoBleSvc.ino` — BLE service setup, characteristic wiring, and main loop
