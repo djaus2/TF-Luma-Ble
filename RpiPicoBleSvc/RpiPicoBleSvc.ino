@@ -31,8 +31,11 @@ bool oneShotCaptureActive = false;
 
 void onModeWrite(BLECharacteristic* characteristic) {
   uint8_t mode = characteristic->getUInt8();
-  if (mode <= 2) {
+  if (mode == 0 || mode == 1 || mode == 3) {
     bleMode = mode;
+    oneShotCaptureActive = false;
+    Serial.print("Mode updated to ");
+    Serial.println(bleMode);
   }
 }
 
@@ -52,9 +55,6 @@ void onThresholdWrite(BLECharacteristic* characteristic) {
 
 void onRangeMinWrite(BLECharacteristic* characteristic) {
   uint16_t value = characteristic->getUInt16();
-  if (value == 0) {
-    value = 1;
-  }
   if (value > rangeMaxMm) {
     value = rangeMaxMm;
   }

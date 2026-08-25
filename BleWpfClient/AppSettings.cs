@@ -9,6 +9,8 @@ public sealed class AppSettings
     public ushort ThresholdMm { get; set; } = 100;
     public ushort RangeMinMm { get; set; } = 300;
     public ushort RangeMaxMm { get; set; } = 2000;
+    public byte GraphMaxDistanceMetres { get; set; } = 10;
+    public int GraphWindowSeconds { get; set; } = 30;
 
     private static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TfLumaBleWpfClient", "settings.json");

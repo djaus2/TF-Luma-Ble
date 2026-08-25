@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>BleWpfClient</AssemblyName>
     <RootNamespace>BleWpfClient</RootNamespace>
-    <Version>1.0</Version>
+    <Version>1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

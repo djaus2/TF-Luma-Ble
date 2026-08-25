@@ -51,6 +51,8 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	private bool _hasLastSensorTimestamp;
 	private uint _lastSensorTimestampMs;
 	private uint _startSensorTimestampMs;
+	private bool _hasLastDistance;
+	private ushort _lastDistanceMm;
 
 	public TfLumaBleClientLib(string? deviceName = null)
 	{
@@ -128,6 +130,8 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 			_hasLastSensorTimestamp = false;
 			_lastSensorTimestampMs = 0;
 			_startSensorTimestampMs = 0;
+			_hasLastDistance = false;
+			_lastDistanceMm = 0;
 		}
 
 		return true;
@@ -190,7 +194,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 
 	public async Task<bool> WriteRangeAsync(ushort minMm, ushort maxMm, CancellationToken cancellationToken = default)
 	{
-		if (_rangeMinCharacteristic is null || _rangeMaxCharacteristic is null || minMm == 0 || maxMm == 0 || minMm > maxMm)
+		if (_rangeMinCharacteristic is null || _rangeMaxCharacteristic is null || maxMm == 0 || minMm > maxMm)
 		{
 			return false;
 		}
@@ -233,6 +237,21 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 
 			_startSensorTimestampMs = _lastSensorTimestampMs;
 			_elapsedEnabled = true;
+			return true;
+		}
+	}
+
+	public bool TryGetLastDistanceMm(out ushort distanceMm)
+	{
+		lock (_stateSync)
+		{
+			if (!_hasLastDistance)
+			{
+				distanceMm = 0;
+				return false;
+			}
+
+			distanceMm = _lastDistanceMm;
 			return true;
 		}
 	}
@@ -437,6 +456,12 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		uint? timestampMs = null;
 		uint? elapsedMs = null;
 		var timeDisplay = "(no timestamp)";
+
+		lock (_stateSync)
+		{
+			_hasLastDistance = true;
+			_lastDistanceMm = distanceMm;
+		}
 
 		if (bytes.Length >= 6)
 		{

@@ -65,13 +65,27 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+
+        <Border x:Name="BusyOverlay" Background="#66000000" CornerRadius="8" Panel.ZIndex="99" Visibility="Collapsed">
+            <Grid>
+                <Border Background="#F5F7FB" CornerRadius="10" Padding="18,12" BorderBrush="#CFD8E3" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                        <TextBlock x:Name="BusySpinnerText" Text="⏳" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                        <TextBlock x:Name="BusyMessageText" Text="Connecting..." FontSize="15" FontWeight="SemiBold" Foreground="#1B2733" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
 
         <Border Grid.Row="0" Padding="10" CornerRadius="6" Background="#F3F6FB" BorderBrush="#CFD8E3" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -83,26 +97,21 @@
                     <TextBlock x:Name="StatusText" Text="Disconnected" Foreground="#A94442" FontSize="13" Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <Button Grid.Column="1" x:Name="StartTimerButton" Content="Start" Width="80" Height="34" Margin="0,0,8,0" IsEnabled="False" Click="StartTimerButton_Click"/>
-                <Button Grid.Column="2" x:Name="ConnectButton" Content="Connect" Width="110" Height="34" Margin="0,0,8,0" IsEnabled="False" Click="ConnectButton_Click"/>
-                <Button Grid.Column="3" x:Name="ScanButton" Content="Scan" Width="90" Height="34" Margin="0,0,8,0" Click="ScanButton_Click"/>
-                <Button Grid.Column="4" x:Name="ExitButton" Content="Exit" Width="80" Height="34" Click="ExitButton_Click"/>
+                <Button Grid.Column="1" x:Name="StartTimerButton" Content="Start" Width="80" Height="34" Margin="0,0,8,0" IsEnabled="False" Visibility="Collapsed" Click="StartTimerButton_Click"/>
+                <Button Grid.Column="2" x:Name="ClearButton" Content="Clear" Width="90" Height="34" Margin="0,0,8,0" Click="ClearButton_Click"/>
+                <Button Grid.Column="3" x:Name="ViewToggleButton" Content="Show log" Width="120" Height="34" Margin="0,0,8,0" Click="ViewToggleButton_Click"/>
+                <Button Grid.Column="4" x:Name="ConnectButton" Content="Connect" Width="110" Height="34" Margin="0,0,8,0" IsEnabled="False" Click="ConnectButton_Click"/>
+                <Button Grid.Column="5" x:Name="ScanButton" Content="Scan" Width="90" Height="34" Margin="0,0,8,0" Click="ScanButton_Click"/>
+                <Button Grid.Column="6" x:Name="ExitButton" Content="Exit" Width="80" Height="34" Click="ExitButton_Click"/>
             </Grid>
         </Border>
 
-        <Border Grid.Row="1" Margin="0,10,0,0" Padding="10" CornerRadius="6" Background="#FAFCFF" BorderBrush="#CFD8E3" BorderThickness="1">
+        <Border x:Name="ModeSettingsBorder" Grid.Row="1" Margin="0,10,0,0" Padding="10" CornerRadius="6" Background="#FAFCFF" BorderBrush="#CFD8E3" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="130"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="70"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="70"/>
-                    <ColumnDefinition Width="70"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="50"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
@@ -114,20 +123,55 @@
                     <ComboBoxItem Content="3 - One Shot" Tag="3"/>
                 </ComboBox>
 
-                <Button Grid.Column="2" x:Name="SendModeButton" Content="Send Mode" Width="95" Height="30" Margin="10,0,16,0" IsEnabled="False" Click="SendModeButton_Click"/>
+                <StackPanel x:Name="GraphSettingsPanel" Grid.Column="3" Grid.ColumnSpan="2" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                    <TextBlock Text="Graph max (m)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBox x:Name="GraphMaxDistanceTextBox" Text="10" Width="60" Height="28" VerticalContentAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBlock Text="Window" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBox x:Name="GraphWindowTextBox" Text="00:30" Width="60" Height="28" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                    <Button x:Name="ApplyGraphSettingsButton" Content="Apply" Width="78" Height="30" Click="ApplyGraphSettingsButton_Click"/>
+                </StackPanel>
 
-                <TextBlock Grid.Column="3" Text="Threshold (mm)" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox Grid.Column="4" x:Name="ThresholdTextBox" Text="100" Width="90" Height="28" IsEnabled="False" VerticalContentAlignment="Center"/>
-                <Button Grid.Column="5" x:Name="SendThresholdButton" Content="Send Threshold" Width="136" Height="30" Margin="10,0,16,0" IsEnabled="False" Click="SendThresholdButton_Click"/>
-
-                <TextBlock Grid.Column="6" Text="Range (mm)" VerticalAlignment="Center" Margin="10,0,8,0"/>
-                <TextBox Grid.Column="7" x:Name="RangeMinTextBox" Text="300" Width="70" Height="28" Margin="0,0,8,0" IsEnabled="False" VerticalContentAlignment="Center"/>
-                <TextBox Grid.Column="8" x:Name="RangeMaxTextBox" Text="2000" Width="70" Height="28" Margin="0,0,8,0" IsEnabled="False" VerticalContentAlignment="Center"/>
-                <Button Grid.Column="9" x:Name="SendRangeButton" Content="Set Range" Width="90" Height="30" IsEnabled="False" Click="SendRangeButton_Click"/>
             </Grid>
         </Border>
 
-        <Border Grid.Row="2" Margin="0,10,0,0" Padding="10" CornerRadius="6" Background="#FFFFFF" BorderBrush="#CFD8E3" BorderThickness="1">
+        <Border x:Name="ThresholdSettingsBorder" Grid.Row="2" Margin="0,10,0,0" Padding="10" CornerRadius="6" Background="#F9FBFD" BorderBrush="#CFD8E3" BorderThickness="1" Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="Threshold (mm)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Grid.Column="1" x:Name="ThresholdTextBox" Text="100" Width="60" Height="28" IsEnabled="False" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                <Button Grid.Column="2" x:Name="SendThresholdButton" Content="Send Threshold" Width="136" Height="30" IsEnabled="False" Click="SendThresholdButton_Click"/>
+            </Grid>
+        </Border>
+
+        <Border x:Name="RangeSettingsBorder" Grid.Row="2" Margin="0,10,0,0" Padding="10" CornerRadius="6" Background="#F9FBFD" BorderBrush="#CFD8E3" BorderThickness="1" Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="50"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="50"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+ 
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="Range (mm)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Grid.Column="1" x:Name="RangeMinTextBox" Text="300" Width="60" Height="28" Margin="0,0,4,0" IsEnabled="False" VerticalContentAlignment="Center"/>
+                <Button Grid.Column="2" x:Name="CaptureMinButton" Content="Auto Min" Width="80" Height="28" Margin="0,0,8,0" IsEnabled="False" Click="CaptureMinButton_Click"/>
+                <TextBox Grid.Column="3" x:Name="RangeMaxTextBox" Text="2000" Width="60" Height="28" Margin="0,0,4,0" IsEnabled="False" VerticalContentAlignment="Center"/>
+                <Button Grid.Column="4" x:Name="CaptureMaxButton" Content="Auto Max" Width="90" Height="28" Margin="0,0,8,0" IsEnabled="False" Click="CaptureMaxButton_Click"/>
+                <Button Grid.Column="5" x:Name="SendRangeButton" Content="Manually Set Range" Width="120" Height="30" IsEnabled="False" Click="SendRangeButton_Click"/>
+                <TextBlock Grid.Column="6" x:Name="RangeMaxTextBoxInfo" Text="Manual: Just enter and press.   Auto: Place object at distance and press." Foreground="Green" FontStyle="Italic" VerticalAlignment="Center" Margin="5,0,8,0"/>
+            </Grid>
+        </Border>
+
+        <Border x:Name="DataRow" Grid.Row="3" Margin="0,10,0,0" Padding="10" CornerRadius="6" Background="#FFFFFF" BorderBrush="#CFD8E3" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -152,11 +196,18 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="3" Margin="0,10,0,0" Padding="8" CornerRadius="6" Background="#F9FBFD" BorderBrush="#CFD8E3" BorderThickness="1">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Activity" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                <ListBox x:Name="LogList" FontFamily="Consolas" FontSize="13"/>
-            </DockPanel>
+        <Border x:Name="GraphPanel" Grid.Row="5" Grid.RowSpan="2" Margin="0,10,0,0" Padding="8" CornerRadius="6" Background="#F9FBFD" BorderBrush="#CFD8E3" BorderThickness="1">
+            <Grid>
+                <Canvas x:Name="DistanceGraphCanvas" Background="#F3F7FB" Visibility="Collapsed"/>
+                <TextBlock x:Name="GraphPlaceholderText" Text="Graph hidden" Foreground="#687889" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+
+                <Border x:Name="LogBorder" Background="#F9FBFD" Visibility="Visible">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Activity" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <ListBox x:Name="LogList" FontFamily="Consolas" FontSize="13"/>
+                    </DockPanel>
+                </Border>
+            </Grid>
         </Border>
     </Grid>
 </Window>
