@@ -1,4 +1,5 @@
 #include <BLE.h>
+#include <EEPROM.h>
 #include "tf-luma.h"
 
 const char* DEVICE_NAME = "TF-Luna";
@@ -12,6 +13,7 @@ const BLEUUID THRESHOLD_UUID(0xA007);
 const BLEUUID RANGE_MIN_UUID(0xA008);
 const BLEUUID RANGE_MAX_UUID(0xA009);
 const BLEUUID START_UUID(0xA00A);
+const BLEUUID DEBUG_UUID(0xA00B);
 
 BLEService* tfLunaService = nullptr;
 BLECharacteristic* distanceCharacteristic = nullptr;
@@ -20,6 +22,7 @@ BLECharacteristic* thresholdCharacteristic = nullptr;
 BLECharacteristic* rangeMinCharacteristic = nullptr;
 BLECharacteristic* rangeMaxCharacteristic = nullptr;
 BLECharacteristic* startCharacteristic = nullptr;
+BLECharacteristic* debugCharacteristic = nullptr;
 
 uint8_t bleMode = 1;      // 0 = always publish, 1 = threshold hysteresis, 3 = one-shot in-range capture
 uint16_t thresholdMm = 100;
@@ -28,14 +31,105 @@ uint16_t rangeMaxMm = 2000;
 uint16_t lastDistanceMm = 0;
 bool hasLastDistance = false;
 bool oneShotCaptureActive = false;
+bool resetMeasurementRequested = false;
+bool measurementRunning = false;  // mode 1 only reports distance once Start has been received
+bool SendDeb = true;              // gates all Serial output when set from the client
+
+// Emulated EEPROM layout: [0] magic byte, [1] SendDeb (0/1), so the debug flag survives reboot.
+const int EEPROM_SIZE = 2;
+const uint8_t EEPROM_MAGIC = 0xA5;
+
+void loadSendDebFromFlash() {
+  EEPROM.begin(EEPROM_SIZE);
+  if (EEPROM.read(0) == EEPROM_MAGIC) {
+    SendDeb = EEPROM.read(1) != 0;
+  }
+}
+
+void saveSendDebToFlash() {
+  EEPROM.write(0, EEPROM_MAGIC);
+  EEPROM.write(1, SendDeb ? 1 : 0);
+  EEPROM.commit();
+}
+
+void Serialbegin(unsigned long baud) {
+  if (SendDeb) {
+    Serial.begin(baud);
+  }
+}
+
+void SerialStop() {
+  Serial.end();
+}
+
+template <typename T>
+void Serialprint(T value) {
+  if (SendDeb) {
+    Serial.print(value);
+  }
+}
+
+template <typename T>
+void Serialprint(T value, int format) {
+  if (SendDeb) {
+    Serial.print(value, format);
+  }
+}
+
+void Serialprintln() {
+  if (SendDeb) {
+    Serial.println();
+  }
+}
+
+template <typename T>
+void Serialprintln(T value) {
+  if (SendDeb) {
+    Serial.println(value);
+  }
+}
+
+template <typename T>
+void Serialprintln(T value, int format) {
+  if (SendDeb) {
+    Serial.println(value, format);
+  }
+}
+
+void onDebugWrite(BLECharacteristic* characteristic) {
+  bool newState = characteristic->getUInt8() != 0;
+
+  if (newState) {
+    if (!SendDeb) {
+      SendDeb = true;
+      Serialbegin(115200);  // reopen the port since it was stopped when debug was off
+    }
+    Serial.println("Debug output enabled");
+  } else if (SendDeb) {
+    Serial.println("Debug output disabled");
+    SerialStop();
+    SendDeb = false;
+  }
+
+  saveSendDebToFlash();
+}
 
 void onModeWrite(BLECharacteristic* characteristic) {
   uint8_t mode = characteristic->getUInt8();
   if (mode == 0 || mode == 1 || mode == 3) {
+    if (mode != bleMode) {
+      hasLastDistance = false;
+      lastDistanceMm = 0;
+      measurementRunning = false;
+      Serialprintln("Distance reporting baseline reset");
+    }
+
     bleMode = mode;
     oneShotCaptureActive = false;
-    Serial.print("Mode updated to ");
-    Serial.println(bleMode);
+    Serialprint("Mode updated to ");
+    Serialprint(bleMode);
+    Serialprint("; threshold reporting is ");
+    Serialprintln(bleMode == 1 ? "enabled" : "disabled");
   }
 }
 
@@ -46,11 +140,13 @@ void onThresholdWrite(BLECharacteristic* characteristic) {
   }
 
   thresholdMm = value;
+  hasLastDistance = false;
+  lastDistanceMm = 0;
   characteristic->setValue((uint16_t)thresholdMm);
 
-  Serial.print("Threshold updated to ");
-  Serial.print(thresholdMm);
-  Serial.println(" mm");
+  Serialprint("Threshold updated to ");
+  Serialprint(thresholdMm);
+  Serialprintln(" mm; distance reporting baseline reset");
 }
 
 void onRangeMinWrite(BLECharacteristic* characteristic) {
@@ -62,9 +158,9 @@ void onRangeMinWrite(BLECharacteristic* characteristic) {
   rangeMinMm = value;
   characteristic->setValue((uint16_t)rangeMinMm);
 
-  Serial.print("Range min updated to ");
-  Serial.print(rangeMinMm);
-  Serial.println(" mm");
+  Serialprint("Range min updated to ");
+  Serialprint(rangeMinMm);
+  Serialprintln(" mm");
 }
 
 void onRangeMaxWrite(BLECharacteristic* characteristic) {
@@ -79,41 +175,50 @@ void onRangeMaxWrite(BLECharacteristic* characteristic) {
   rangeMaxMm = value;
   characteristic->setValue((uint16_t)rangeMaxMm);
 
-  Serial.print("Range max updated to ");
-  Serial.print(rangeMaxMm);
-  Serial.println(" mm");
+  Serialprint("Range max updated to ");
+  Serialprint(rangeMaxMm);
+  Serialprintln(" mm");
 }
 
 void onStartWrite(BLECharacteristic* characteristic) {
   uint8_t trigger = characteristic->getUInt8();
   if (trigger == 0) {
     oneShotCaptureActive = false;
-    Serial.println("Range capture cancelled");
+    measurementRunning = false;
+    resetMeasurementRequested = true;
+    Serialprintln("Reset received; measuring distance for reset response");
+    return;
+  }
+
+  if (bleMode != 3) {
+    measurementRunning = true;
+    Serialprintln("Measurement session start received");
     return;
   }
 
   oneShotCaptureActive = true;
-  Serial.print("One-shot range capture started for ");
-  Serial.print(rangeMinMm);
-  Serial.print(".. ");
-  Serial.print(rangeMaxMm);
-  Serial.println(" mm");
+  Serialprint("One-shot range capture started for ");
+  Serialprint(rangeMinMm);
+  Serialprint(".. ");
+  Serialprint(rangeMaxMm);
+  Serialprintln(" mm");
 }
 
-void publishDistance(uint16_t distanceMm, uint32_t timestampMs) {
+void publishDistance(uint16_t distanceMm, uint32_t timestampMs, char changeSign = ' ') {
   if (distanceCharacteristic == nullptr) {
     return;
   }
 
   // Payload format (little-endian):
-  // [0..1] distanceMm (uint16), [2..5] timestampMs since boot (uint32)
-  uint8_t payload[6];
+  // [0..1] distanceMm (uint16), [2..5] timestampMs since boot (uint32), [6] change sign
+  uint8_t payload[7];
   payload[0] = static_cast<uint8_t>(distanceMm & 0xFF);
   payload[1] = static_cast<uint8_t>((distanceMm >> 8) & 0xFF);
   payload[2] = static_cast<uint8_t>(timestampMs & 0xFF);
   payload[3] = static_cast<uint8_t>((timestampMs >> 8) & 0xFF);
   payload[4] = static_cast<uint8_t>((timestampMs >> 16) & 0xFF);
   payload[5] = static_cast<uint8_t>((timestampMs >> 24) & 0xFF);
+  payload[6] = static_cast<uint8_t>(changeSign);
 
   // In Arduino-Pico, setting the characteristic value is enough for a
   // subscribed client to receive a notification when BLENotify is enabled.
@@ -121,11 +226,12 @@ void publishDistance(uint16_t distanceMm, uint32_t timestampMs) {
 }
 TFLuma tfluma;
 void setup() {
-  Serial.begin(115200);
+  loadSendDebFromFlash();
+  Serialbegin(115200);
   delay(500);
-  Serial.println("Starting TF-Luna BLE server...");
+  Serialprintln("Starting TF-Luna BLE server...");
   if (!tfluma.begin()) {
-    Serial.println("TF-Luna init failed");
+    Serialprintln("TF-Luna init failed");
   }
   BLE.begin(DEVICE_NAME);
 
@@ -136,18 +242,21 @@ void setup() {
   rangeMinCharacteristic = new BLECharacteristic(RANGE_MIN_UUID, BLERead | BLEWrite, "Min range mm");
   rangeMaxCharacteristic = new BLECharacteristic(RANGE_MAX_UUID, BLERead | BLEWrite, "Max range mm");
   startCharacteristic = new BLECharacteristic(START_UUID, BLERead | BLEWrite, "Start capture");
+  debugCharacteristic = new BLECharacteristic(DEBUG_UUID, BLERead | BLEWrite, "Debug output enabled");
 
   modeCharacteristic->onWrite(onModeWrite);
   thresholdCharacteristic->onWrite(onThresholdWrite);
   rangeMinCharacteristic->onWrite(onRangeMinWrite);
   rangeMaxCharacteristic->onWrite(onRangeMaxWrite);
   startCharacteristic->onWrite(onStartWrite);
+  debugCharacteristic->onWrite(onDebugWrite);
 
   modeCharacteristic->setValue((uint8_t)bleMode);
   thresholdCharacteristic->setValue((uint16_t)thresholdMm);
   rangeMinCharacteristic->setValue((uint16_t)rangeMinMm);
   rangeMaxCharacteristic->setValue((uint16_t)rangeMaxMm);
   startCharacteristic->setValue((uint8_t)0);
+  debugCharacteristic->setValue((uint8_t)(SendDeb ? 1 : 0));
 
   tfLunaService->addCharacteristic(distanceCharacteristic);
   tfLunaService->addCharacteristic(modeCharacteristic);
@@ -155,11 +264,12 @@ void setup() {
   tfLunaService->addCharacteristic(rangeMinCharacteristic);
   tfLunaService->addCharacteristic(rangeMaxCharacteristic);
   tfLunaService->addCharacteristic(startCharacteristic);
+  tfLunaService->addCharacteristic(debugCharacteristic);
 
   BLE.server()->addService(tfLunaService);
   BLE.startAdvertising(true);
 
-  Serial.println("BLE server advertising");
+  Serialprintln("BLE server advertising");
 }
 
 void loop() {
@@ -169,17 +279,27 @@ void loop() {
   uint32_t statusFlags = 0;
 
   if (!tfluma.readDistance(distanceMm, signalStrength, temperatureC, statusFlags)) {
-    Serial.println("TF-Luna read failed");
+    Serialprintln("TF-Luna read failed");
     delay(200);
     return;
   }
 
+  if (resetMeasurementRequested) {
+    publishDistance(distanceMm, millis(), ' ');
+    hasLastDistance = true;
+    lastDistanceMm = distanceMm;
+    Serialprint("Reset measurement: ");
+    Serialprint(distanceMm);
+    Serialprintln(" mm (sent to client)");
+    resetMeasurementRequested = false;
+  }
+
   if (bleMode == 3) {
     if (oneShotCaptureActive && distanceMm >= rangeMinMm && distanceMm <= rangeMaxMm) {
-      publishDistance(distanceMm, millis());
-      Serial.print("One-shot in-range hit: ");
-      Serial.print(distanceMm);
-      Serial.println(" mm");
+      publishDistance(distanceMm, millis(), ' ');
+      Serialprint("One-shot in-range hit: ");
+      Serialprint(distanceMm);
+      Serialprintln(" mm");
       oneShotCaptureActive = false;
     }
 
@@ -187,27 +307,40 @@ void loop() {
     return;
   }
 
-  if (!hasLastDistance) {
-    hasLastDistance = true;
-    lastDistanceMm = distanceMm;
-    publishDistance(distanceMm, millis());
-  } else {
-    int32_t delta = abs(static_cast<int32_t>(distanceMm) - static_cast<int32_t>(lastDistanceMm));
-
-    if (bleMode == 0 || delta >= static_cast<int32_t>(thresholdMm)) {
+  bool reportDistance = false;
+  int32_t reportDelta = 0;
+  bool mode1Ready = bleMode != 1 || measurementRunning;
+  if (mode1Ready) {
+    if (!hasLastDistance) {
+      hasLastDistance = true;
       lastDistanceMm = distanceMm;
-      publishDistance(distanceMm, millis());
+      publishDistance(distanceMm, millis(), ' ');
+      reportDistance = true;
+    } else {
+      int32_t delta = abs(static_cast<int32_t>(distanceMm) - static_cast<int32_t>(lastDistanceMm));
+
+      if (bleMode == 0 || delta >= static_cast<int32_t>(thresholdMm)) {
+        reportDelta = static_cast<int32_t>(distanceMm) - static_cast<int32_t>(lastDistanceMm);
+        lastDistanceMm = distanceMm;
+        publishDistance(distanceMm, millis(), bleMode == 1 ? (reportDelta > 0 ? '+' : '-') : ' ');
+        reportDistance = true;
+      }
     }
   }
 
-  Serial.print("Distance: ");
-  Serial.print(distanceMm);
-  Serial.print(" mm, Strength: ");
-  Serial.print(signalStrength);
-  Serial.print(", Temp C: ");
-  Serial.print(temperatureC);
-  Serial.print(", Status: 0x");
-  Serial.println(statusFlags, HEX);
+  if (bleMode != 1 || reportDistance) {
+    Serialprint("Distance: ");
+    if (bleMode == 1 && reportDelta != 0) {
+      Serialprint(reportDelta > 0 ? "+" : "-");
+    }
+    Serialprint(distanceMm);
+    Serialprint(" mm, Strength: ");
+    Serialprint(signalStrength);
+    Serialprint(", Temp C: ");
+    Serialprint(temperatureC);
+    Serialprint(", Status: 0x");
+    Serialprintln(statusFlags, HEX);
+  }
 
   delay(500);
 }

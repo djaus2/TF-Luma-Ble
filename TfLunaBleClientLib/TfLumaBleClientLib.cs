@@ -11,7 +11,7 @@ public sealed record AdvertisementInfo(ulong Address, string Name, bool HasTarge
 
 public sealed record ProbeResult(string DeviceName, ulong Address, string Status, IReadOnlyList<Guid> Services);
 
-public sealed record DistanceSample(ushort DistanceMm, uint? SensorTimestampMs, uint? ElapsedMs, string TimeDisplay);
+public sealed record DistanceSample(ushort DistanceMm, uint? SensorTimestampMs, uint? ElapsedMs, string TimeDisplay, char ChangeSign = ' ');
 
 public sealed class DistanceSampleEventArgs : EventArgs
 {
@@ -22,7 +22,6 @@ public sealed class DistanceSampleEventArgs : EventArgs
 
 	public DistanceSample Sample { get; }
 }
-
 public sealed class TfLumaBleClientLib : IAsyncDisposable
 {
 	private const string DefaultDeviceName = "TF-Luna";
@@ -34,6 +33,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	private static readonly Guid RangeMinUuid = Guid.Parse("0000A008-0000-1000-8000-00805F9B34FB");
 	private static readonly Guid RangeMaxUuid = Guid.Parse("0000A009-0000-1000-8000-00805F9B34FB");
 	private static readonly Guid StartUuid = Guid.Parse("0000A00A-0000-1000-8000-00805F9B34FB");
+	private static readonly Guid DebugUuid = Guid.Parse("0000A00B-0000-1000-8000-00805F9B34FB");
 
 	private readonly string _deviceName;
 	private readonly object _stateSync = new();
@@ -46,6 +46,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	private GattCharacteristic? _rangeMinCharacteristic;
 	private GattCharacteristic? _rangeMaxCharacteristic;
 	private GattCharacteristic? _startCharacteristic;
+	private GattCharacteristic? _debugCharacteristic;
 
 	private bool _elapsedEnabled;
 	private bool _hasLastSensorTimestamp;
@@ -96,6 +97,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		var rangeMin = await FindCharacteristicAsync(service, RangeMinUuid, cancellationToken);
 		var rangeMax = await FindCharacteristicAsync(service, RangeMaxUuid, cancellationToken);
 		var start = await FindCharacteristicAsync(service, StartUuid, cancellationToken);
+		var debug = await FindCharacteristicAsync(service, DebugUuid, cancellationToken);
 
 		if (distance is null || mode is null || threshold is null)
 		{
@@ -123,6 +125,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		_rangeMinCharacteristic = rangeMin;
 		_rangeMaxCharacteristic = rangeMax;
 		_startCharacteristic = start;
+		_debugCharacteristic = debug;
 
 		lock (_stateSync)
 		{
@@ -158,6 +161,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		_rangeMinCharacteristic = null;
 		_rangeMaxCharacteristic = null;
 		_startCharacteristic = null;
+		_debugCharacteristic = null;
 
 		_service?.Dispose();
 		_service = null;
@@ -215,15 +219,50 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 
 	public async Task<bool> TriggerOneShotRangeCaptureAsync(CancellationToken cancellationToken = default)
 	{
+		return await WriteStartCommandAsync(1, cancellationToken);
+	}
+
+	public async Task<bool> WriteStartCommandAsync(byte command, CancellationToken cancellationToken = default)
+	{
 		if (_startCharacteristic is null)
 		{
 			return false;
 		}
 
 		var writer = new DataWriter();
-		writer.WriteByte(1);
+		writer.WriteByte(command);
 		var result = await _startCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer()).AsTask(cancellationToken);
 		return result.Status == GattCommunicationStatus.Success;
+	}
+
+	public async Task<bool> WriteDebugEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
+	{
+		if (_debugCharacteristic is null)
+		{
+			return false;
+		}
+
+		var writer = new DataWriter();
+		writer.WriteByte((byte)(enabled ? 1 : 0));
+		var result = await _debugCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer()).AsTask(cancellationToken);
+		return result.Status == GattCommunicationStatus.Success;
+	}
+
+	public async Task<bool?> ReadDebugEnabledAsync(CancellationToken cancellationToken = default)
+	{
+		if (_debugCharacteristic is null)
+		{
+			return null;
+		}
+
+		var result = await _debugCharacteristic.ReadValueAsync(BluetoothCacheMode.Uncached).AsTask(cancellationToken);
+		if (result.Status != GattCommunicationStatus.Success || result.Value.Length == 0)
+		{
+			return null;
+		}
+
+		var reader = DataReader.FromBuffer(result.Value);
+		return reader.ReadByte() != 0;
 	}
 
 	public bool TryStartElapsedFromLatestSample()
@@ -455,6 +494,9 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		var distanceMm = BitConverter.ToUInt16(bytes, 0);
 		uint? timestampMs = null;
 		uint? elapsedMs = null;
+		var changeSign = bytes.Length >= 7 && (bytes[6] == (byte)'+' || bytes[6] == (byte)'-')
+			? (char)bytes[6]
+			: ' ';
 		var timeDisplay = "(no timestamp)";
 
 		lock (_stateSync)
@@ -484,7 +526,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 			}
 		}
 
-		DistanceReceived?.Invoke(this, new DistanceSampleEventArgs(new DistanceSample(distanceMm, timestampMs, elapsedMs, timeDisplay)));
+		DistanceReceived?.Invoke(this, new DistanceSampleEventArgs(new DistanceSample(distanceMm, timestampMs, elapsedMs, timeDisplay, changeSign)));
 	}
 
 	public static string FormatElapsed(uint elapsedMs)
