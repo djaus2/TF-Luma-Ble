@@ -5,7 +5,9 @@ plus an Arduino/Raspberry Pico sketch used to run the sensor firmware.
 
 > Ultimately this project will be used with the [djaus2/SwissTimingGemini7SegDisplay](https://github.com/djaus2/SwissTimingGemini7SegDisplay) project to trigger the end of a sprint race.  
 
-> ***Latest:* V1.1** Major changes to WPF UI including Graph mode. Better button state management in UI.  Some changes to Pico sketch to match. Console unchanged.  
+> ***Latest:* V1.2** Focus upon Threshold mode. Only log where beam is intercepted closer than that when Reset/Start. Also can turn Pico Serial Debug Off/On
+
+> ***V1.1** Major changes to WPF UI including Graph mode. Better button state management in UI.  Some changes to Pico sketch to match. Console unchanged.  
 *Documentation needs to catch up.*
 
 ## C# Projects
