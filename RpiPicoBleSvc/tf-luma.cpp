@@ -3,7 +3,7 @@
 #include <Wire.h>        // instantiate the Wire library
 #include <TFLI2C.h>      // TFLuna-I2C Library v.0.2.0
 #include "tf-luma.h"
-
+#include "serialdebug.h"
 
 
 TFLI2C tflI2C;

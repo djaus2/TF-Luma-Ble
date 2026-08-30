@@ -1,6 +1,6 @@
 #include <BLE.h>
-#include <EEPROM.h>
 #include "tf-luma.h"
+#include "serialdebug.h"
 
 const char* DEVICE_NAME = "TF-Luna";
 
@@ -33,86 +33,7 @@ bool hasLastDistance = false;
 bool oneShotCaptureActive = false;
 bool resetMeasurementRequested = false;
 bool measurementRunning = false;  // mode 1 only reports distance once Start has been received
-bool SendDeb = true;              // gates all Serial output when set from the client
 
-// Emulated EEPROM layout: [0] magic byte, [1] SendDeb (0/1), so the debug flag survives reboot.
-const int EEPROM_SIZE = 2;
-const uint8_t EEPROM_MAGIC = 0xA5;
-
-void loadSendDebFromFlash() {
-  EEPROM.begin(EEPROM_SIZE);
-  if (EEPROM.read(0) == EEPROM_MAGIC) {
-    SendDeb = EEPROM.read(1) != 0;
-  }
-}
-
-void saveSendDebToFlash() {
-  EEPROM.write(0, EEPROM_MAGIC);
-  EEPROM.write(1, SendDeb ? 1 : 0);
-  EEPROM.commit();
-}
-
-void Serialbegin(unsigned long baud) {
-  if (SendDeb) {
-    Serial.begin(baud);
-  }
-}
-
-void SerialStop() {
-  Serial.end();
-}
-
-template <typename T>
-void Serialprint(T value) {
-  if (SendDeb) {
-    Serial.print(value);
-  }
-}
-
-template <typename T>
-void Serialprint(T value, int format) {
-  if (SendDeb) {
-    Serial.print(value, format);
-  }
-}
-
-void Serialprintln() {
-  if (SendDeb) {
-    Serial.println();
-  }
-}
-
-template <typename T>
-void Serialprintln(T value) {
-  if (SendDeb) {
-    Serial.println(value);
-  }
-}
-
-template <typename T>
-void Serialprintln(T value, int format) {
-  if (SendDeb) {
-    Serial.println(value, format);
-  }
-}
-
-void onDebugWrite(BLECharacteristic* characteristic) {
-  bool newState = characteristic->getUInt8() != 0;
-
-  if (newState) {
-    if (!SendDeb) {
-      SendDeb = true;
-      Serialbegin(115200);  // reopen the port since it was stopped when debug was off
-    }
-    Serial.println("Debug output enabled");
-  } else if (SendDeb) {
-    Serial.println("Debug output disabled");
-    SerialStop();
-    SendDeb = false;
-  }
-
-  saveSendDebToFlash();
-}
 
 void onModeWrite(BLECharacteristic* characteristic) {
   uint8_t mode = characteristic->getUInt8();
@@ -277,7 +198,7 @@ void loop() {
   uint16_t signalStrength = 0;
   int16_t temperatureC = 0;
   uint32_t statusFlags = 0;
-
+      
   if (!tfluma.readDistance(distanceMm, signalStrength, temperatureC, statusFlags)) {
     Serialprintln("TF-Luna read failed");
     delay(200);
@@ -303,7 +224,7 @@ void loop() {
       oneShotCaptureActive = false;
     }
 
-    delay(100);
+    //delay(100);
     return;
   }
 
