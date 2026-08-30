@@ -32,7 +32,9 @@ uint16_t lastDistanceMm = 0;
 bool hasLastDistance = false;
 bool oneShotCaptureActive = false;
 bool resetMeasurementRequested = false;
-bool measurementRunning = false;  // mode 1 only reports distance once Start has been received
+// When true the device will publish distance samples for modes that require
+// an explicit Start command (mode 0 = continuous, mode 1 = threshold).
+bool measurementRunning = false;
 
 
 void onModeWrite(BLECharacteristic* characteristic) {
@@ -112,6 +114,7 @@ void onStartWrite(BLECharacteristic* characteristic) {
   }
 
   if (bleMode != 3) {
+    // Start command arms continuous/threshold reporting depending on mode.
     measurementRunning = true;
     Serialprintln("Measurement session start received");
     return;
@@ -230,8 +233,11 @@ void loop() {
 
   bool reportDistance = false;
   int32_t reportDelta = 0;
-  bool mode1Ready = bleMode != 1 || measurementRunning;
-  if (mode1Ready) {
+  // For mode 0 (continuous) and mode 1 (threshold) only publish when a Start
+  // command has been received (measurementRunning == true). Other modes are
+  // allowed to publish unconditionally.
+  bool modeReady = (bleMode == 0 || bleMode == 1) ? measurementRunning : true;
+  if (modeReady) {
     if (!hasLastDistance) {
       hasLastDistance = true;
       lastDistanceMm = distanceMm;
@@ -239,7 +245,6 @@ void loop() {
       reportDistance = true;
     } else {
       int32_t delta = abs(static_cast<int32_t>(distanceMm) - static_cast<int32_t>(lastDistanceMm));
-
       if (bleMode == 0 || delta >= static_cast<int32_t>(thresholdMm)) {
         reportDelta = static_cast<int32_t>(distanceMm) - static_cast<int32_t>(lastDistanceMm);
         lastDistanceMm = distanceMm;

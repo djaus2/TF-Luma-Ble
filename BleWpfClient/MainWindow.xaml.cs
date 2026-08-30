@@ -394,8 +394,19 @@ public partial class MainWindow : Window
         {
             _elapsedStopwatch.Stop();
             _oneShotAwaitingCapture = false;
-            SetTimerState(TimerState.Stopped);
-            Log("Timer stopped.");
+            // In continuous mode we toggle Start/Stop (no Reset). Stop should write 0 to the start characteristic.
+            if (IsContinuousModeSelected())
+            {
+                var stopSent = await _client.WriteStartCommandAsync(0);
+                SetTimerState(TimerState.Ready);
+                Log($"Timer stopped; stop command {(stopSent ? "sent" : "failed")}."
+                    );
+            }
+            else
+            {
+                SetTimerState(TimerState.Stopped);
+                Log("Timer stopped.");
+            }
             return;
         }
 
@@ -460,6 +471,11 @@ public partial class MainWindow : Window
     private bool IsThresholdModeSelected()
     {
         return ModeCombo.SelectedItem is ComboBoxItem item && item.Tag is string modeText && modeText == "1";
+    }
+
+    private bool IsContinuousModeSelected()
+    {
+        return ModeCombo.SelectedItem is ComboBoxItem item && item.Tag is string modeText && modeText == "0";
     }
 
     private async void ModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)

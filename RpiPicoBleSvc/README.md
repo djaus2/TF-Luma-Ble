@@ -2,6 +2,10 @@
 
 Raspberry Pi Pico (Arduino-Pico core) BLE peripheral firmware that reads a TF-Luna I2C distance sensor and exposes it as a BLE GATT service to the Windows clients in this workspace.
 
+## Version 1.3
+
+- Continuous mode (0): Can start and stop in WPF app but pico sketch still gets distances but doesn't send them when "stopped". In that mode they always get logged to serial debug.
+
 ## Ref
 
 Uses the [budryerson/TFLuna-I2C](https://github.com/budryerson/TFLuna-I2C) as on GitHub.

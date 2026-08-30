@@ -1,7 +1,17 @@
 <Solution>
   <Folder Name="/Solution Items/">
     <File Path="README.md" />
+    <File Path="RpiPicoBleSvc/RpiPicoBleSvc.ino" />
+  </Folder>
+  <Folder Name="/Solution Items/RpiPicoBleSvc/">
+    <File Path="RpiPicoBleSvc/btstack_config.h" />
+    <File Path="RpiPicoBleSvc/image-1.png" />
     <File Path="RpiPicoBleSvc/README.md" />
+    <File Path="RpiPicoBleSvc/RpiPicoBleSvc.ino" />
+    <File Path="RpiPicoBleSvc/serialdebug.cpp" />
+    <File Path="RpiPicoBleSvc/serialdebug.h" />
+    <File Path="RpiPicoBleSvc/tf-luma.cpp" />
+    <File Path="RpiPicoBleSvc/tf-luma.h" />
   </Folder>
   <Project Path="BleConsoleClient/BleConsoleClient.csproj" />
   <Project Path="BleWpfClient/BleWpfClient.csproj" />
