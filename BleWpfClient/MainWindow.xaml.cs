@@ -48,6 +48,28 @@ public partial class MainWindow : Window
 
         _client.DistanceReceived += Client_DistanceReceived;
 
+        _client.MeasurementStateChanged += (s, measuring) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (measuring)
+                {
+                    if (!_elapsedStopwatch.IsRunning)
+                    {
+                        _elapsedStopwatch.Restart();
+                    }
+                    SetTimerState(TimerState.Running);
+                    Log("Measurement started (remote)");
+                }
+                else
+                {
+                    _elapsedStopwatch.Stop();
+                    SetTimerState(TimerState.Ready);
+                    Log("Measurement stopped (remote)");
+                }
+            });
+        };
+
         ApplySavedSettingsToControls();
         _lastAppliedThresholdMm = _settings.ThresholdMm;
         _graphWindowSeconds = _settings.GraphWindowSeconds;
@@ -390,14 +412,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_timerState == TimerState.Running)
+            if (_timerState == TimerState.Running)
         {
             _elapsedStopwatch.Stop();
             _oneShotAwaitingCapture = false;
             // In continuous mode we toggle Start/Stop (no Reset). Stop should write 0 to the start characteristic.
             if (IsContinuousModeSelected())
             {
-                var stopSent = await _client.WriteStartCommandAsync(0);
+                var stopSent = await _client.StopMeasurementsAsync();
                 SetTimerState(TimerState.Ready);
                 Log($"Timer stopped; stop command {(stopSent ? "sent" : "failed")}."
                     );
@@ -413,7 +435,7 @@ public partial class MainWindow : Window
         if (_timerState == TimerState.Stopped)
         {
             ResetTimerState(captureDistance: true);
-            var resetSent = await _client.WriteStartCommandAsync(0);
+            var resetSent = await _client.StopMeasurementsAsync();
             _awaitingResetDistance = resetSent;
             Log($"Timer reset; reset command {(resetSent ? "sent" : "failed")}.");
             return;
@@ -459,7 +481,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var startSent = await _client.WriteStartCommandAsync(1);
+        var startSent = await _client.StartMeasurementsAsync();
         Log($"Start: elapsed timer started; start command {(startSent ? "sent" : "failed")}.");
     }
 
@@ -574,7 +596,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var ok = await _client.WriteModeAsync(mode);
+        var ok = await _client.SetModeAsync(mode);
         Log($"Mode write {mode}: {(ok ? "Success" : "Failed")}");
         return ok;
     }
@@ -607,7 +629,7 @@ public partial class MainWindow : Window
             }
         }
 
-        var ok = await _client.WriteThresholdAsync(threshold);
+        var ok = await _client.SetThresholdAsync(threshold);
         if (ok)
         {
             _lastAppliedThresholdMm = threshold;
@@ -647,7 +669,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var ok = await _client.WriteRangeAsync(minMm, maxMm);
+        var ok = await _client.SetRangeAsync(minMm, maxMm);
         Log($"Range write {minMm}..{maxMm} mm: {(ok ? "Success" : "Failed")}");
         return ok;
     }

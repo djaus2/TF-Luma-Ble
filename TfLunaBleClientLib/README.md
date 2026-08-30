@@ -67,6 +67,16 @@ if (await client.ConnectAsync())
 }
 ```
 
+Start/Stop measurement abstraction
+
+The library exposes higher-level methods to control measurement reporting so callers don't need to write raw Start characteristic values:
+
+- StartMeasurementsAsync() — writes Start=1 and raises MeasurementStateChanged(true) when successful.
+- StopMeasurementsAsync() — writes Start=0 and raises MeasurementStateChanged(false) when successful.
+- IsMeasuring — property indicating the last-known measurement state.
+
+Use these methods from your UI to start/stop continuous or threshold reporting without accessing GATT details directly.
+
 Target frameworks
 
 - net8.0-windows10.0.19041.0

@@ -49,6 +49,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	private GattCharacteristic? _debugCharacteristic;
 
 	private bool _elapsedEnabled;
+	private bool _measuring;
 	private bool _hasLastSensorTimestamp;
 	private uint _lastSensorTimestampMs;
 	private uint _startSensorTimestampMs;
@@ -61,6 +62,11 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	}
 
 	public event EventHandler<DistanceSampleEventArgs>? DistanceReceived;
+
+	/// <summary>
+	/// Raised when the measurement (Start/Stop) state changes. The boolean is true when measuring.
+	/// </summary>
+	public event EventHandler<bool>? MeasurementStateChanged;
 
 	public bool IsConnected => _device is not null && _service is not null;
 
@@ -222,7 +228,69 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		return await WriteStartCommandAsync(1, cancellationToken);
 	}
 
-	public async Task<bool> WriteStartCommandAsync(byte command, CancellationToken cancellationToken = default)
+	/// <summary>
+	/// Convenience wrapper for writing mode to the device.
+	/// </summary>
+	public Task<bool> SetModeAsync(byte mode, CancellationToken cancellationToken = default)
+	{
+		return WriteModeAsync(mode, cancellationToken);
+	}
+
+	/// <summary>
+	/// Convenience wrapper for writing threshold to the device.
+	/// </summary>
+	public Task<bool> SetThresholdAsync(ushort thresholdMm, CancellationToken cancellationToken = default)
+	{
+		return WriteThresholdAsync(thresholdMm, cancellationToken);
+	}
+
+	/// <summary>
+	/// Convenience wrapper for writing min/max range to the device.
+	/// </summary>
+	public Task<bool> SetRangeAsync(ushort minMm, ushort maxMm, CancellationToken cancellationToken = default)
+	{
+		return WriteRangeAsync(minMm, maxMm, cancellationToken);
+	}
+
+	/// <summary>
+	/// Start continuous/threshold measurement reporting on the device (writes Start=1).
+	/// When the write succeeds this library updates IsMeasuring and raises MeasurementStateChanged.
+	/// </summary>
+	public async Task<bool> StartMeasurementsAsync(CancellationToken cancellationToken = default)
+	{
+		var ok = await WriteStartCommandAsync(1, cancellationToken);
+		if (ok)
+		{
+			lock (_stateSync)
+			{
+				_measuring = true;
+			}
+			MeasurementStateChanged?.Invoke(this, true);
+		}
+		return ok;
+	}
+
+	/// <summary>
+	/// Stop measurement reporting on the device (writes Start=0).
+	/// When the write succeeds this library updates IsMeasuring and raises MeasurementStateChanged.
+	/// </summary>
+	public async Task<bool> StopMeasurementsAsync(CancellationToken cancellationToken = default)
+	{
+		var ok = await WriteStartCommandAsync(0, cancellationToken);
+		if (ok)
+		{
+			lock (_stateSync)
+			{
+				_measuring = false;
+			}
+			MeasurementStateChanged?.Invoke(this, false);
+		}
+		return ok;
+	}
+
+	public bool IsMeasuring => _measuring;
+
+	private async Task<bool> WriteStartCommandAsync(byte command, CancellationToken cancellationToken = default)
 	{
 		if (_startCharacteristic is null)
 		{

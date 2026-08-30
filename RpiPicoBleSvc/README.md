@@ -46,19 +46,32 @@ Device name: `TF-Luna`
 | Threshold | `0000A007-...` | Read/Write | Minimum change (mm) required to publish a new reading in mode `1` |
 | Range Min | `0000A008-...` | Read/Write | Minimum distance (mm) accepted in one-shot mode `3` |
 | Range Max | `0000A009-...` | Read/Write | Maximum distance (mm) accepted in one-shot mode `3` |
-| Start | `0000A00A-...` | Read/Write | Write `1` to arm a single one-shot capture; write `0` to cancel |
+| Start | `0000A00A-...` | Read/Write | Write `1` to arm a single one-shot capture (mode `3`) or to start reporting in continuous/threshold modes; write `0` to stop reporting or cancel a one-shot |
 
 ### Distance notification payload (little-endian)
 
 - bytes 0..1: distance in mm (`uint16`)
 - bytes 2..5: timestamp in ms since board boot (`uint32`)
 
-### Modes
+### Modes and Start semantics
 
-- **Mode 0 (Continuous):** publishes a reading every loop iteration.
-- **Mode 1 (Threshold):** publishes only when the distance changes by at least `Threshold` mm since the last published reading.
+- **Start characteristic:** Writing `1` to the Start characteristic has two meanings depending on mode:
+  - In mode `3` (one-shot) it arms a single in-range capture. The first in-range reading will be published and the one-shot is then disarmed.
+  - In mode `0` (continuous) and mode `1` (threshold) it arms continuous/threshold reporting; the device will only publish BLE distance notifications while it is armed. Writing `0` stops/disarms reporting.
+
+- **Mode 0 (Continuous):** when armed (Start=`1`) the firmware publishes readings as they are taken. When disarmed (Start=`0`) the firmware continues to read the sensor and will still print measurements to the serial debug log, but it will not send BLE notifications to clients.
+
+- **Mode 1 (Threshold):** when armed (Start=`1`) the firmware publishes only when the distance changes by at least `Threshold` mm since the last published reading. When disarmed it will not publish BLE notifications (and serial logging is suppressed except for reset/one-shot messages).
+
 - **Mode 2:** reserved, accepted but not currently implemented as a distinct behavior.
-- **Mode 3 (One-Shot):** after writing `1` to the Start characteristic, the firmware publishes the *first* reading that falls within `[Range Min, Range Max]` mm, then automatically disarms until the next Start write.
+
+- **Mode 3 (One-Shot):** write `1` to the Start characteristic to arm a single in-range capture; the firmware publishes the first reading in `[Range Min, Range Max]` mm then disarms automatically. Writing `0` cancels a pending one-shot and requests a reset response sample to be sent to the client.
+
+### Start/Stop gating behavior
+
+- In modes `0` (continuous) and `1` (threshold), BLE distance notifications are gated by the Start characteristic and are sent only while Start=`1`.
+- Writing Start=`0` stops BLE notifications immediately; the firmware can continue sampling the sensor and may still print to serial debug output depending on mode.
+- Writing Start=`1` again resumes notification publishing in modes `0`/`1`; mode `3` remains single-capture arm/disarm behavior.
 
 ## Hardware notes
 

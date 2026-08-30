@@ -35,6 +35,17 @@ Notes
 - The UI exposes controls to change mode, set threshold/range, start an elapsed timer, and trigger one-shot captures.
 - The application uses the shared library in ../TfLunaBleClientLib; see that README for API details and examples.
 
+Start/Stop behavior
+
+Recent updates move Start/Stop responsibility into the shared library. The WPF UI now calls StartMeasurementsAsync()/StopMeasurementsAsync() on the library rather than writing the Start characteristic directly. In continuous and threshold modes the device will only publish notifications while started; the WPF Start button acts as a two-state toggle (Start / Stop) and does not perform a Reset when stopping.
+
+Start / Stop behavior
+
+- The Start button is a two-state toggle (Start/Stop) that writes to the Start characteristic.
+- Continuous mode (`0`): Start writes `1` to begin streaming; Stop writes `0` to stop streaming and return the UI to Ready (no Reset step required).
+- Threshold mode (`1`): Start writes `1` to arm threshold reporting; Stop writes `0` to disarm reporting.
+- One-shot mode (`3`): Start writes `1` to arm a single capture; the client then triggers capture via the library helper (`TriggerOneShotRangeCaptureAsync`).
+
 Troubleshooting
 
 - If the TF-Luna service is not found, ensure the board is powered and advertising, and check for serial output from the device (the firmware prints `BLE server advertising` on startup).
