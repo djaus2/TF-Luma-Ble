@@ -31,10 +31,15 @@ uint16_t rangeMaxMm = 2000;
 uint16_t lastDistanceMm = 0;
 bool hasLastDistance = false;
 bool oneShotCaptureActive = false;
+bool oneShotStartPending = false;
 bool resetMeasurementRequested = false;
 // When true the device will publish distance samples for modes that require
 // an explicit Start command (mode 0 = continuous, mode 1 = threshold).
 bool measurementRunning = false;
+unsigned long loopDelayMs = 10;
+
+// Forward declaration so handlers can call publishDistance before it's defined.
+void publishDistance(uint16_t distanceMm, uint32_t timestampMs, char changeSign);
 
 
 void onModeWrite(BLECharacteristic* characteristic) {
@@ -49,6 +54,12 @@ void onModeWrite(BLECharacteristic* characteristic) {
 
     bleMode = mode;
     oneShotCaptureActive = false;
+    switch (bleMode) {
+      case 0: loopDelayMs = 100; break;
+      case 1: loopDelayMs = 10; break;
+      case 2: loopDelayMs = 100; break;
+      case 3: loopDelayMs = 10; break;
+    }
     Serialprint("Mode updated to ");
     Serialprint(bleMode);
     Serialprint("; threshold reporting is ");
@@ -105,6 +116,9 @@ void onRangeMaxWrite(BLECharacteristic* characteristic) {
 
 void onStartWrite(BLECharacteristic* characteristic) {
   uint8_t trigger = characteristic->getUInt8();
+  // Explicit debug trace for Start/Stop events
+  Serialprint("onStartWrite: trigger=");
+  Serialprintln(trigger);
   if (trigger == 0) {
     oneShotCaptureActive = false;
     measurementRunning = false;
@@ -120,7 +134,7 @@ void onStartWrite(BLECharacteristic* characteristic) {
     return;
   }
 
-  oneShotCaptureActive = true;
+  oneShotStartPending = true;
   Serialprint("One-shot range capture started for ");
   Serialprint(rangeMinMm);
   Serialprint(".. ");
@@ -193,6 +207,13 @@ void setup() {
   BLE.server()->addService(tfLunaService);
   BLE.startAdvertising(true);
 
+  switch (bleMode) {
+    case 0: loopDelayMs = 100; break;
+    case 1: loopDelayMs = 10; break;
+    case 2: loopDelayMs = 100; break;
+    case 3: loopDelayMs = 10; break;
+  }
+
   Serialprintln("BLE server advertising");
 }
 
@@ -209,22 +230,46 @@ void loop() {
   }
 
   if (resetMeasurementRequested) {
-    publishDistance(distanceMm, millis(), ' ');
+    // Capture and store the reset/baseline reading but do not publish it.
+    // The stored value will be used as the baseline when a subsequent Start
+    // command is received; this avoids sending an intervening reset sample to
+    // the client when Start is written immediately after Reset.
     hasLastDistance = true;
     lastDistanceMm = distanceMm;
-    Serialprint("Reset measurement: ");
+    Serialprint("Reset measurement stored: ");
     Serialprint(distanceMm);
-    Serialprintln(" mm (sent to client)");
+    Serialprintln(" mm (not sent)");
     resetMeasurementRequested = false;
   }
 
   if (bleMode == 3) {
-    if (oneShotCaptureActive && distanceMm >= rangeMinMm && distanceMm <= rangeMaxMm) {
-      publishDistance(distanceMm, millis(), ' ');
-      Serialprint("One-shot in-range hit: ");
+    if (oneShotStartPending) {
+      oneShotStartPending = false;
+      hasLastDistance = true;
+      lastDistanceMm = distanceMm;
+      publishDistance(distanceMm, millis(), 'S');
+      oneShotCaptureActive = true;
+      Serialprint("One-shot: START baseline sent: ");
       Serialprint(distanceMm);
       Serialprintln(" mm");
-      oneShotCaptureActive = false;
+      return;
+    }
+
+    if (oneShotCaptureActive && distanceMm >= rangeMinMm && distanceMm <= rangeMaxMm) {
+      // The first break is the first in-range reading that is significantly
+      // closer than the stored START baseline.
+      /*int32_t baseline = static_cast<int32_t>(lastDistanceMm);
+      int32_t current = static_cast<int32_t>(distanceMm);
+      int32_t drop = baseline - current;
+      if (drop > static_cast<int32_t>(thresholdMm)) {
+        */
+      if (true){  
+        publishDistance(distanceMm, millis(), ' ');
+        Serialprint("One-shot in-range hit: ");
+        Serialprint(distanceMm);
+        Serialprintln(" mm");
+        oneShotCaptureActive = false;
+      }
     }
 
     //delay(100);
@@ -268,6 +313,6 @@ void loop() {
     Serialprintln(statusFlags, HEX);
   }
 
-  delay(500);
+  delay(loopDelayMs);
 }
 

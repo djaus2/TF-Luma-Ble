@@ -5,7 +5,10 @@ plus an Arduino/Raspberry Pico sketch used to run the sensor firmware.
 
 > Ultimately this project will be used with the [djaus2/SwissTimingGemini7SegDisplay](https://github.com/djaus2/SwissTimingGemini7SegDisplay) project to trigger the end of a sprint race.  
 >
-> ***Latest:* V1.3** Serial debug messages in Pico sketch now in module that can be turned off/on from WPF app. Sketch state (including this) saved to flash.
+> ***Latest:* V1.3.5** Major functional changes but IS a work in progress.  
+Thinking of using second core of pico to just continuosly get distance that can be read by first core via a callback
+>
+> **V1.3** Serial debug messages in Pico sketch now in module that can be turned off/on from WPF app. Sketch state (including this) saved to flash.
 >
 > **V1.2** Focus upon Threshold mode. Only log where beam is intercepted closer than that when Reset/Start. Also can turn Pico Serial Debug Off/On
 >

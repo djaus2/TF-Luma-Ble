@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Diagnostics;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
@@ -64,9 +65,23 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	public event EventHandler<DistanceSampleEventArgs>? DistanceReceived;
 
 	/// <summary>
+	/// Debug message event for BLE comms; handlers receive raw debug lines from the library.
+	/// </summary>
+	// DebugMessage event removed — debug output goes to Debug.WriteLine only.
+
+	/// <summary>
 	/// Raised when the measurement (Start/Stop) state changes. The boolean is true when measuring.
 	/// </summary>
 	public event EventHandler<bool>? MeasurementStateChanged;
+
+	private void DebugNotify(string message)
+	{
+		try
+		{
+			Debug.WriteLine(message);
+		}
+		catch { }
+	}
 
 	public bool IsConnected => _device is not null && _service is not null;
 
@@ -186,6 +201,8 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		var writer = new DataWriter();
 		writer.WriteByte(mode);
 		var result = await _modeCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer()).AsTask(cancellationToken);
+
+		DebugNotify($"[BLE Write] Mode write: mode={mode} status={result.Status}");
 		return result.Status == GattCommunicationStatus.Success;
 	}
 
@@ -199,6 +216,8 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		var writer = new DataWriter { ByteOrder = ByteOrder.LittleEndian };
 		writer.WriteUInt16(thresholdMm);
 		var result = await _thresholdCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer()).AsTask(cancellationToken);
+
+		DebugNotify($"[BLE Write] Threshold write: {thresholdMm} mm status={result.Status} payload={BitConverter.ToString(BitConverter.GetBytes(thresholdMm))}");
 		return result.Status == GattCommunicationStatus.Success;
 	}
 
@@ -220,6 +239,8 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		var maxWriter = new DataWriter { ByteOrder = ByteOrder.LittleEndian };
 		maxWriter.WriteUInt16(maxMm);
 		var maxResult = await _rangeMaxCharacteristic.WriteValueWithResultAsync(maxWriter.DetachBuffer()).AsTask(cancellationToken);
+
+		DebugNotify($"[BLE Write] Range write: min={minMm} max={maxMm} statusMin={minResult.Status} statusMax={maxResult.Status} payloadMin={BitConverter.ToString(BitConverter.GetBytes(minMm))} payloadMax={BitConverter.ToString(BitConverter.GetBytes(maxMm))}");
 		return maxResult.Status == GattCommunicationStatus.Success;
 	}
 
@@ -264,6 +285,13 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 			lock (_stateSync)
 			{
 				_measuring = true;
+				// If we have a last sensor timestamp, use it as the start timestamp
+				// so elapsed times reported by DistanceReceived are relative to it.
+				if (_hasLastSensorTimestamp)
+				{
+					_elapsedEnabled = true;
+					_startSensorTimestampMs = _lastSensorTimestampMs;
+				}
 			}
 			MeasurementStateChanged?.Invoke(this, true);
 		}
@@ -282,6 +310,7 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 			lock (_stateSync)
 			{
 				_measuring = false;
+				_elapsedEnabled = false;
 			}
 			MeasurementStateChanged?.Invoke(this, false);
 		}
@@ -313,6 +342,8 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 		var writer = new DataWriter();
 		writer.WriteByte((byte)(enabled ? 1 : 0));
 		var result = await _debugCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer()).AsTask(cancellationToken);
+
+		DebugNotify($"[BLE Write] Debug write: enabled={(enabled ? 1 : 0)} status={result.Status}");
 		return result.Status == GattCommunicationStatus.Success;
 	}
 
@@ -554,17 +585,30 @@ public sealed class TfLumaBleClientLib : IAsyncDisposable
 	private void DistanceCharacteristic_ValueChanged(GattCharacteristic sender, GattValueChangedEventArgs args)
 	{
 		var bytes = args.CharacteristicValue.ToArray();
+
+		// Debug output for incoming BLE notifications
+		DebugNotify($"[BLE Notify] Received {bytes.Length} bytes: {BitConverter.ToString(bytes)} at {DateTime.UtcNow:O}");
+
 		if (bytes.Length < 2)
 		{
 			return;
 		}
 
+		// local helper to raise debug event without throwing
+
+
+
 		var distanceMm = BitConverter.ToUInt16(bytes, 0);
 		uint? timestampMs = null;
 		uint? elapsedMs = null;
-		var changeSign = bytes.Length >= 7 && (bytes[6] == (byte)'+' || bytes[6] == (byte)'-')
-			? (char)bytes[6]
-			: ' ';
+		char changeSign = ' ';
+		if (bytes.Length >= 7)
+		{
+			var b = bytes[6];
+			if (b == (byte)'+') changeSign = '+';
+			else if (b == (byte)'-') changeSign = '-';
+			else if (b == (byte)'S') changeSign = 'S';
+		}
 		var timeDisplay = "(no timestamp)";
 
 		lock (_stateSync)

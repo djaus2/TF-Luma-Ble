@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using TfLuna.BleClientLib;
 
 namespace BleWpfClient;
@@ -22,7 +23,10 @@ public partial class MainWindow : Window
 
     private readonly TfLumaBleClientLib _client = new();
     private int _graphWindowSeconds = DefaultGraphWindowSeconds;
+    private double _graphZoomFactor = 1.0;
     private byte _maxGraphDistanceMetres = DefaultMaxGraphDistanceMetres;
+    private DispatcherTimer? _renderTimer;
+    private bool _thresholdAutoStopFired;
     private readonly Stopwatch _elapsedStopwatch = new();
     private readonly AppSettings _settings = AppSettings.Load();
     private ushort _lastAppliedThresholdMm;
@@ -46,7 +50,10 @@ public partial class MainWindow : Window
         DistanceGraphCanvas.SizeChanged += DistanceGraphCanvas_SizeChanged;
         GraphScrollViewer.SizeChanged += GraphScrollViewer_SizeChanged;
 
+        _renderTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Render, RenderTimer_Tick, Dispatcher);
+
         _client.DistanceReceived += Client_DistanceReceived;
+        // Intentionally do not subscribe _client.DebugMessage to avoid routing BLE debug lines into the Activity log.
 
         _client.MeasurementStateChanged += (s, measuring) =>
         {
@@ -185,6 +192,7 @@ public partial class MainWindow : Window
 
         _maxGraphDistanceMetres = graphMaxDistanceMetres;
         _graphWindowSeconds = graphWindowSeconds;
+        _graphZoomFactor = 1.0;
         _settings.GraphMaxDistanceMetres = _maxGraphDistanceMetres;
         _settings.GraphWindowSeconds = _graphWindowSeconds;
         _settings.Save();
@@ -194,6 +202,46 @@ public partial class MainWindow : Window
         _graphSamples.Clear();
         RenderDistanceGraph();
         Log($"Graph settings updated: max={_maxGraphDistanceMetres} m, window={FormatGraphWindow(_graphWindowSeconds)}");
+    }
+
+    private void GraphZoomOutButton_Click(object sender, RoutedEventArgs e)
+    {
+        ZoomAndPreserveCenter(1.6);
+        Log($"Graph shrunk to {_graphWindowSeconds * _graphZoomFactor:F0}s window");
+    }
+
+    private void GraphZoomInButton_Click(object sender, RoutedEventArgs e)
+    {
+        ZoomAndPreserveCenter(1.0 / 1.6);
+        Log($"Graph expanded to {_graphWindowSeconds * _graphZoomFactor:F0}s window");
+    }
+
+    private void ZoomAndPreserveCenter(double factor)
+    {
+        var oldViewport = GraphScrollViewer.ViewportWidth;
+        if (oldViewport <= 1)
+        {
+            oldViewport = GraphScrollViewer.ActualWidth;
+        }
+
+        var oldPps = oldViewport / Math.Max(_graphWindowSeconds * _graphZoomFactor, 1.0);
+        var centerTime = (GraphScrollViewer.HorizontalOffset + oldViewport / 2.0) / oldPps;
+
+        _graphZoomFactor *= factor;
+
+        RenderDistanceGraph();
+        GraphScrollViewer.UpdateLayout();
+
+        var newViewport = GraphScrollViewer.ViewportWidth;
+        if (newViewport <= 1)
+        {
+            newViewport = GraphScrollViewer.ActualWidth;
+        }
+
+        var newPps = oldViewport / Math.Max(_graphWindowSeconds * _graphZoomFactor, 1.0);
+        var newOffset = centerTime * newPps - newViewport / 2.0;
+        var maxOffset = Math.Max(0, DistanceGraphCanvas.Width - newViewport);
+        GraphScrollViewer.ScrollToHorizontalOffset(Math.Clamp(newOffset, 0, maxOffset));
     }
 
     private async void ScanButton_Click(object sender, RoutedEventArgs e)
@@ -451,7 +499,7 @@ public partial class MainWindow : Window
         _resetDistanceSample = null;
         _modeOneStartDistanceMm = IsThresholdModeSelected() ? startingSample?.DistanceMm : null;
         _graphSamples.Clear();
-        if (!IsOneShotModeSelected() && startingSample is not null)
+        if (!IsOneShotModeSelected() && !IsThresholdModeSelected() && startingSample is not null)
         {
             _graphSamples.Enqueue((startUtc, startingSample.SensorTimestampMs, startingSample.DistanceMm));
             Log($"Graph start: {startingSample.DistanceMm} mm at 00.00.");
@@ -459,8 +507,11 @@ public partial class MainWindow : Window
 
         if (IsThresholdModeSelected())
         {
-            _thresholdGraphStartSensorTimestampMs = startingSample?.SensorTimestampMs;
             _thresholdGraphStartUtc = startUtc;
+            if (_modeOneStartDistanceMm.HasValue)
+            {
+                _graphSamples.Enqueue((startUtc, null, _modeOneStartDistanceMm.Value));
+            }
 
             RenderDistanceGraph();
         }
@@ -527,7 +578,8 @@ public partial class MainWindow : Window
     private void UpdateModeDependentControls()
     {
         if (StartTimerButton is null || SendThresholdButton is null || SendRangeButton is null || ThresholdTextBox is null || RangeMinTextBox is null || RangeMaxTextBox is null
-            || CaptureMinButton is null || CaptureMaxButton is null || RangeSettingsBorder is null || ThresholdSettingsBorder is null)
+            || CaptureMinButton is null || CaptureMaxButton is null || RangeSettingsBorder is null || ThresholdSettingsBorder is null || AutoStopAtMaxTimeCheckBox is null
+            || GraphZoomOutButton is null || GraphZoomInButton is null)
         {
             // Fires from InitializeComponent before later-declared controls exist yet.
             return;
@@ -542,6 +594,10 @@ public partial class MainWindow : Window
         ThresholdTextBox.IsEnabled = connected && !oneShot;
         SendThresholdButton.IsEnabled = connected && !oneShot;
         ThresholdSettingsBorder.Visibility = thresholdMode ? Visibility.Visible : Visibility.Collapsed;
+        var showLog = LogBorder is not null && LogBorder.Visibility == Visibility.Visible;
+        AutoStopAtMaxTimeCheckBox.IsEnabled = connected && thresholdMode;
+        GraphZoomOutButton.IsEnabled = !showLog;
+        GraphZoomInButton.IsEnabled = !showLog;
         RangeMinTextBox.IsEnabled = connected && oneShot;
         RangeMaxTextBox.IsEnabled = connected && oneShot;
         SendRangeButton.IsEnabled = connected && oneShot;
@@ -681,20 +737,79 @@ public partial class MainWindow : Window
 
         Dispatcher.Invoke(() =>
         {
-            var isResetMeasurement = _awaitingResetDistance;
-            if (IsThresholdModeSelected() && !_modeOneStartDistanceMm.HasValue && sample.ChangeSign == ' ')
+            if (_thresholdAutoStopFired)
             {
-                _modeOneStartDistanceMm = sample.DistanceMm;
+                return;
+            }
+
+            var isResetMeasurement = _awaitingResetDistance;
+
+            // If the firmware sent a START baseline marker, and we're in one-shot
+            // mode and currently awaiting capture, treat it as the one-shot
+            // result so it is reported exactly like a normal in-range hit.
+            // Otherwise store it as a baseline for future use.
+            if (sample.ChangeSign == 'S')
+            {
+                if (IsOneShotModeSelected() && _oneShotAwaitingCapture)
+                {
+                    // The START baseline is the current clear distance; it is never
+                    // the one-shot result. Store it and wait for the first break
+                    // (a subsequent closer in-range reading).
+                    _awaitingResetDistance = false;
+                    _resetDistanceSample = sample;
+                    Log($"Baseline received: {sample.DistanceMm} mm{(sample.SensorTimestampMs.HasValue ? $" at {sample.SensorTimestampMs.Value} ms" : string.Empty)}.");
+                    return;
+                }
+
+                _awaitingResetDistance = false;
+                _resetDistanceSample = sample;
+                Log($"Baseline received: {sample.DistanceMm} mm{(sample.SensorTimestampMs.HasValue ? $" at {sample.SensorTimestampMs.Value} ms" : string.Empty)}.");
+                return;
+            }
+
+            var recordGraph = !IsOneShotModeSelected() && _elapsedStopwatch.IsRunning;
+
+            if (IsThresholdModeSelected() && _thresholdAutoStopFired)
+            {
+                recordGraph = false;
+            }
+
+            if (IsThresholdModeSelected() && sample.ChangeSign == ' ' && !_thresholdGraphStartSensorTimestampMs.HasValue)
+            {
+                _modeOneStartDistanceMm ??= sample.DistanceMm;
+                _thresholdGraphStartSensorTimestampMs = sample.SensorTimestampMs;
+                recordGraph = false;
             }
 
             if (_awaitingResetDistance)
             {
                 _awaitingResetDistance = false;
                 _resetDistanceSample = sample;
-                Log($"{sample.ChangeSign}Reset distance received: {sample.DistanceMm} mm{(sample.SensorTimestampMs.HasValue ? $" at {sample.SensorTimestampMs.Value} ms" : string.Empty)}.");
+                Log($"{sample.ChangeSign}Reset baseline received: {sample.DistanceMm} mm{(sample.SensorTimestampMs.HasValue ? $" at {sample.SensorTimestampMs.Value} ms" : string.Empty)}.");
+
+                // If we're in one-shot mode and awaiting a capture, treat the reset
+                // measurement as a baseline only and do not consume the one-shot
+                // capture state. This avoids immediately accepting the reset sample
+                // as the one-shot result when Start was written just after Reset.
+                if (IsOneShotModeSelected() && _oneShotAwaitingCapture)
+                {
+                    Log("One-shot: reset baseline stored; awaiting next in-range reading.");
+                    return;
+                }
             }
 
-            if (!IsOneShotModeSelected())
+            if (IsThresholdModeSelected() && AutoStopAtMaxTimeCheckBox.IsChecked == true)
+            {
+                var elapsedSeconds = GetGraphElapsedSeconds((DateTime.UtcNow, sample.SensorTimestampMs, sample.DistanceMm));
+                if (elapsedSeconds >= _graphWindowSeconds)
+                {
+                    _thresholdAutoStopFired = true;
+                    recordGraph = false;
+                    AutoStopThresholdAsync();
+                }
+            }
+
+            if (recordGraph)
             {
                 RecordGraphSample(sample);
             }
@@ -703,19 +818,39 @@ public partial class MainWindow : Window
             {
                 if (!_oneShotAwaitingCapture)
                 {
-                    Log($"One-shot: ignored extra reading {sample.DistanceMm} mm (already captured this start).");
+                    // This should not happen: an extra one-shot reading arrived when
+                    // the client was not awaiting a capture. Show a popup so the
+                    // developer/user is aware and we can investigate the sequence.
+                    var info = $"Unexpected extra one-shot reading {sample.DistanceMm} mm" +
+                               (sample.SensorTimestampMs.HasValue ? $" at {sample.SensorTimestampMs.Value} ms" : string.Empty);
+                    Log(info);
+                    try
+                    {
+                        MessageBox.Show(this, info + "\n\nThis indicates a logic error: the client was not awaiting a one-shot capture.",
+                            "One-shot logic error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    catch
+                    {
+                        // If MessageBox fails for any reason, fall back to logging only.
+                    }
+
                     return;
                 }
 
                 _oneShotAwaitingCapture = false;
                 _elapsedStopwatch.Stop();
-                SetTimerState(TimerState.Stopped);
+                    // Stop the timer and show Reset state (client must Reset to arm again)
+                    SetTimerState(TimerState.Stopped);
 
-                var oneShotElapsedMs = (uint)_elapsedStopwatch.ElapsedMilliseconds;
-                DistanceText.Text = $"{sample.DistanceMm} mm";
-                SensorTimestampText.Text = sample.SensorTimestampMs.HasValue ? $"{sample.SensorTimestampMs.Value} ms" : "legacy payload";
-                ElapsedText.Text = TfLumaBleClientLib.FormatElapsed(oneShotElapsedMs);
-                Log($"{sample.ChangeSign}Distance {sample.DistanceMm} mm @ {ElapsedText.Text} (PC-timed since Start)");
+                    // Prefer device-reported elapsed time when available (sensor timestamp delta).
+                    uint oneShotElapsedMs = sample.ElapsedMs ?? (uint)_elapsedStopwatch.ElapsedMilliseconds;
+
+                    DistanceText.Text = $"{sample.DistanceMm} mm";
+                    SensorTimestampText.Text = sample.SensorTimestampMs.HasValue ? $"{sample.SensorTimestampMs.Value} ms" : "legacy payload";
+                    ElapsedText.Text = TfLumaBleClientLib.FormatElapsed(oneShotElapsedMs);
+
+                    // Log as a one-shot distance received (match Pico log) and indicate elapsed
+                    Log($"One-shot distance received: {sample.DistanceMm} mm @ {ElapsedText.Text}");
                 return;
             }
 
@@ -726,7 +861,7 @@ public partial class MainWindow : Window
                 var elapsedMs = (uint)_elapsedStopwatch.ElapsedMilliseconds;
                 ElapsedText.Text = TfLumaBleClientLib.FormatElapsed(elapsedMs);
             }
-            else
+            else if (!_thresholdAutoStopFired)
             {
                 ElapsedText.Text = "--";
             }
@@ -776,6 +911,21 @@ public partial class MainWindow : Window
             TimerState.Stopped => "Reset",
             _ => "Start"
         };
+
+        if (_renderTimer is not null)
+        {
+            if (state == TimerState.Running)
+            {
+                _thresholdAutoStopFired = false;
+                _renderTimer.Start();
+            }
+            else
+            {
+                _renderTimer.Stop();
+            }
+        }
+
+        UpdateModeDependentControls();
     }
 
     private void ResetTimerState(bool captureDistance = false)
@@ -787,6 +937,8 @@ public partial class MainWindow : Window
         _graphSamples.Clear();
         _thresholdGraphStartSensorTimestampMs = null;
         _thresholdGraphStartUtc = null;
+        _thresholdAutoStopFired = false;
+        _graphZoomFactor = 1.0;
         _modeOneStartDistanceMm = null;
         SetTimerState(TimerState.Ready);
         RenderDistanceGraph();
@@ -802,7 +954,7 @@ public partial class MainWindow : Window
         _graphSamples.Clear();
         _thresholdGraphStartSensorTimestampMs = null;
         _thresholdGraphStartUtc = null;
-        ConnectButton.IsEnabled = false;
+        ConnectButton.IsEnabled = true;
         StatusText.Text = "Disconnected";
         StatusText.Foreground = System.Windows.Media.Brushes.IndianRed;
         DistanceText.Text = "-- mm";
@@ -813,7 +965,7 @@ public partial class MainWindow : Window
 
     private void SetBusy(bool busy, string? message = null)
     {
-        ConnectButton.IsEnabled = !busy && (_client.IsConnected || _tfLunaFoundInScan);
+        ConnectButton.IsEnabled = !busy;
         ScanButton.IsEnabled = !busy && !_client.IsConnected;
 
         if (BusyOverlay is not null)
@@ -825,6 +977,22 @@ public partial class MainWindow : Window
         {
             BusyMessageText.Text = message ?? "Working...";
         }
+    }
+
+    private async void AutoStopThresholdAsync()
+    {
+        _elapsedStopwatch.Stop();
+        ElapsedText.Text = TfLumaBleClientLib.FormatElapsed((uint)(_graphWindowSeconds * 1000));
+        SetTimerState(TimerState.Stopped);
+        RenderDistanceGraph();
+
+        if (!_client.IsConnected)
+        {
+            return;
+        }
+
+        var ok = await _client.StopMeasurementsAsync();
+        Log($"Auto-stopped threshold at {_graphWindowSeconds}s: {(ok ? "ok" : "failed")}");
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -866,6 +1034,8 @@ public partial class MainWindow : Window
         {
             RenderDistanceGraph();
         }
+
+        UpdateModeDependentControls();
     }
 
     private void DistanceGraphCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -875,7 +1045,8 @@ public partial class MainWindow : Window
 
     private void UpdateGraphVisibility()
     {
-        if (ViewToggleButton is null || ClearButton is null || GraphSettingsPanel is null || GraphScrollViewer is null || DistanceGraphCanvas is null || GraphPlaceholderText is null || LogBorder is null || GraphPanel is null)
+        if (ViewToggleButton is null || ClearButton is null || GraphSettingsPanel is null || GraphScrollViewer is null || DistanceGraphCanvas is null || GraphPlaceholderText is null || LogBorder is null || GraphPanel is null
+            || GraphZoomOutButton is null || GraphZoomInButton is null)
         {
             return;
         }
@@ -893,6 +1064,8 @@ public partial class MainWindow : Window
         {
             RenderDistanceGraph();
         }
+
+        UpdateModeDependentControls();
     }
 
     private void RecordGraphSample(DistanceSample sample)
@@ -906,6 +1079,19 @@ public partial class MainWindow : Window
     private void GraphScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         RenderDistanceGraph();
+    }
+
+    private void RenderTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_elapsedStopwatch.IsRunning)
+        {
+            ElapsedText.Text = TfLumaBleClientLib.FormatElapsed((uint)_elapsedStopwatch.ElapsedMilliseconds);
+        }
+
+        if (IsThresholdModeSelected())
+        {
+            RenderDistanceGraph();
+        }
     }
 
     private void RenderDistanceGraph()
@@ -926,7 +1112,9 @@ public partial class MainWindow : Window
             viewportWidth = GraphScrollViewer.ActualWidth;
         }
 
-        var graphDurationSeconds = (double)_graphWindowSeconds;
+        var isThresholdMode = IsThresholdModeSelected();
+        var zoomedWindowSeconds = _graphWindowSeconds * _graphZoomFactor;
+        var graphDurationSeconds = zoomedWindowSeconds;
         if (_graphSamples.Count > 1)
         {
             var oldestSample = _graphSamples.Peek();
@@ -934,7 +1122,17 @@ public partial class MainWindow : Window
             graphDurationSeconds = Math.Max(graphDurationSeconds, GetGraphElapsedSeconds(newestSample) - GetGraphElapsedSeconds(oldestSample));
         }
 
-        var width = Math.Max(viewportWidth, viewportWidth * graphDurationSeconds / Math.Max(_graphWindowSeconds, 1));
+        double? thresholdCurrentElapsed = null;
+        if (isThresholdMode)
+        {
+            thresholdCurrentElapsed = _thresholdAutoStopFired
+                ? _graphWindowSeconds
+                : _elapsedStopwatch.Elapsed.TotalSeconds;
+
+            graphDurationSeconds = Math.Max(graphDurationSeconds, thresholdCurrentElapsed.Value);
+        }
+
+        var width = Math.Max(viewportWidth, viewportWidth * graphDurationSeconds / Math.Max(zoomedWindowSeconds, 1));
         var previousHorizontalOffset = GraphScrollViewer.HorizontalOffset;
         DistanceGraphCanvas.Width = width;
         DistanceGraphCanvas.Height = Math.Max(1, GraphScrollViewer.ViewportHeight);
@@ -968,7 +1166,7 @@ public partial class MainWindow : Window
             });
         }
 
-        var pixelsPerSecond = width / Math.Max(_graphWindowSeconds, 1);
+        var pixelsPerSecond = viewportWidth / Math.Max(_graphWindowSeconds * _graphZoomFactor, 1);
         var annotatedSeconds = Math.Ceiling(graphDurationSeconds);
         for (var second = 0; second <= annotatedSeconds; second++)
         {
@@ -1051,14 +1249,13 @@ public partial class MainWindow : Window
 
         var oldest = _graphSamples.Peek().TimestampUtc;
         var points = new PointCollection();
-        var isThresholdMode = IsThresholdModeSelected();
 
         foreach (var sample in _graphSamples)
         {
             var elapsedSeconds = isThresholdMode
                 ? GetGraphElapsedSeconds(sample)
                 : (sample.TimestampUtc - oldest).TotalSeconds;
-            var x = (elapsedSeconds / Math.Max(_graphWindowSeconds, 1)) * width;
+            var x = elapsedSeconds * pixelsPerSecond;
             var normalizedDistance = Math.Clamp(sample.DistanceMm / (double)Math.Max(_maxGraphDistanceMetres * 1000, 1), 0, 1);
             var y = height - (normalizedDistance * height);
 
@@ -1070,6 +1267,15 @@ public partial class MainWindow : Window
 
             if (points.Count == 0)
             {
+                if (isThresholdMode && _modeOneStartDistanceMm.HasValue)
+                {
+                    var baselineDistanceMm = _modeOneStartDistanceMm.Value;
+                    var normalizedBaseline = Math.Clamp(baselineDistanceMm / (double)Math.Max(_maxGraphDistanceMetres * 1000, 1), 0, 1);
+                    var baselineY = height - (normalizedBaseline * height);
+                    points.Add(new Point(0, baselineY));
+                    continue;
+                }
+
                 points.Add(new Point(x, y));
                 continue;
             }
@@ -1077,6 +1283,16 @@ public partial class MainWindow : Window
             var previous = points[points.Count - 1];
             points.Add(new Point(x, previous.Y));
             points.Add(new Point(x, y));
+        }
+
+        if (isThresholdMode && thresholdCurrentElapsed.HasValue && points.Count > 0)
+        {
+            var rightX = thresholdCurrentElapsed.Value * pixelsPerSecond;
+            var last = points[points.Count - 1];
+            if (rightX > last.X)
+            {
+                points.Add(new Point(rightX, last.Y));
+            }
         }
 
         DistanceGraphCanvas.Children.Add(new Polyline
@@ -1095,7 +1311,12 @@ public partial class MainWindow : Window
         }
 
         var clickPoint = e.GetPosition(DistanceGraphCanvas);
-        var pixelsPerSecond = DistanceGraphCanvas.ActualWidth / Math.Max(_graphWindowSeconds, 1);
+        var vpw = GraphScrollViewer.ViewportWidth;
+        if (vpw <= 1)
+        {
+            vpw = GraphScrollViewer.ActualWidth;
+        }
+        var pixelsPerSecond = vpw / Math.Max(_graphWindowSeconds * _graphZoomFactor, 1);
         var clickedSeconds = Math.Max(0, clickPoint.X / pixelsPerSecond);
         var selectedTimestamp = _graphSamples.Peek().TimestampUtc.AddSeconds(clickedSeconds);
         var elapsedText = FormatGraphTime(clickedSeconds);
