@@ -1,4 +1,16 @@
 <Solution>
+  <Folder Name="/New-RPI-TFLUMA-UnderDevlopment/" />
+  <Folder Name="/New-RPI-TFLUMA-UnderDevlopment/Multitasking/">
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/common.h" />
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/core2.cpp" />
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/misc.cpp" />
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/misc.h" />
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/Multitasking.ino" />
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/serialdebug.cpp" />
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/serialdebug.h" />
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/tf-luma.cpp" />
+    <File Path="New-RPI-TFLUMA-UnderDevlopment/Multitasking/tf-luma.h" />
+  </Folder>
   <Folder Name="/Solution Items/">
     <File Path="README.md" />
   </Folder>
