@@ -5,6 +5,8 @@ plus an Arduino/Raspberry Pico sketch used to run the sensor firmware.
 
 > Ultimately this project will be used with the [djaus2/SwissTimingGemini7SegDisplay](https://github.com/djaus2/SwissTimingGemini7SegDisplay) project to trigger the end of a sprint race.  
 >
+> **Under devlopment** Better RPI TF-Luma Sketch. Watch this space.
+>
 > ***Latest:* V1.3.5** Major functional changes but IS a work in progress.  
 Thinking of using second core of pico to just continuosly get distance that can be read by first core via a callback
 >
